@@ -25,6 +25,6 @@ the TOML authoring dialect (overview.md § Pydantic as the canonical
 representation). ``conjured.ir`` is that representation's home.
 """
 
-__version__ = "0.1.1"
+__version__ = "0.2.0"
 
 __all__ = ["__version__"]

@@ -26,3 +26,5 @@ prune .pytest_cache
 prune tools/.pytest_cache
 prune tests/.pytest_cache
 prune .deepeval
+
+include CHANGELOG.md

@@ -1,0 +1,28 @@
+# sdist contents. Both distributions now carry the full canonical docs corpus (docs/):
+# the WHEEL carries it because a rendered engine error resolves its audit_code / rule_id
+# LOCALLY against the docs shipped in the package (RFC-9457 type = about:blank, no web URI —
+# docs/components/error-channel/reference.md, the `type` row), so the corpus must ride the
+# installed package. Because docs/ lives outside the importable package (src/conjured/),
+# package-data cannot reach it; the wheel force-includes it via setup.py's custom build_py
+# (which copies docs/ into the package build tree — same prunes as below). The sdist carries
+# it via the `graft docs` here, alongside the shipping tools and the test suite — the canon
+# IS the product's spec, so the source distribution ships it too.
+#
+# LICENSE, NOTICE, README.md, and pyproject.toml are included automatically (license-files
+# + readme metadata); the grafts below add the non-package trees setuptools would not
+# otherwise collect. (The wheel's docs copy is setup.py's job, not this file's — MANIFEST.in
+# governs the sdist only.)
+
+graft docs
+graft tools
+graft tests
+
+# Never ship build/cache detritus. `prune` is path-relative to the sdist root, so the
+# grafted trees need their own prunes — a nested cache (e.g. tools/.pytest_cache, left by
+# running the tools' test suite) is NOT reached by the root-level prune.
+global-exclude __pycache__ *.py[cod] *.so
+prune docs/_build
+prune .pytest_cache
+prune tools/.pytest_cache
+prune tests/.pytest_cache
+prune .deepeval

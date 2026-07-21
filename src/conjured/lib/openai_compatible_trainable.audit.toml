@@ -1,0 +1,5 @@
+source_hash = "4419e35618fc9ee511683d3d2c161b6b3dcb954d812876df105985a01f98ab5b"
+audit_prompt_hash = "24376eaf1c7a1665ef99accd71eab65228b52f407d3e07018d6cf21c2ae0d513"
+verdict = "pass-with-notes"
+date = "2026-07-20"
+findings = "conjured.conformance/findings/openai_compatible_trainable.md"

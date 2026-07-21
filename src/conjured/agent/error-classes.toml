@@ -1,0 +1,612 @@
+# GENERATED — DO NOT EDIT (hash: 9d5370de116f34b0)
+# conjured.agent error-classes — the machine-readable audit_code → rule mapping
+# (error-channel/reference.md § error-classes.toml). Generated from the engine's
+# registration API by tools/gen_error_index.py; the in-process Check discriminator
+# table rides along as the pre-catalog dispatch surface.
+
+[[audit_codes]]
+audit_code = "C1.HALT_ON_INPUT_VALIDATION_ERROR.001"
+check = "halt-on-input-validation-error"
+error_class = "SchemaValidationError"
+rule_id = "R-error-channel-003"
+rule_name = "halt semantics"
+reference = "components/error-channel/reference.md"
+statement = '''
+Any error class halts channel-writing nodes — transform, service,
+and trainable composition dispatches.
+Hooks have a bounded two-case rule: operational PipelineFailure
+(network unreachable, remote 5xx, timeout) is caught by the
+runner's hook wrapper and execution continues; ContractViolation
+and SchemaValidationError from a hook still halt.
+
+The wrapper sanction applies to hooks specifically because their
+kind admits no outgoing channels — hooks return None and the
+runner has no merge path for a hook return. Operational failure
+in a hook loses a side-effect record but cannot corrupt downstream
+handler inputs, because no downstream node reads channels from a
+hook. Channel-writing nodes halt on every error class because
+they write to channels; a swallowed failure would produce a
+channel value the runner cannot distinguish from a successful one,
+propagating corruption downstream.
+
+The wrapper sanction is a property of the hook kind (its graph
+position admits no outgoing channels), not a per-handler except;
+in-body except in any handler body is itself a violation.
+'''
+
+[[audit_codes]]
+audit_code = "C1.HALT_ON_SCHEMA_VALIDATION_ERROR.001"
+check = "halt-on-schema-validation-error"
+error_class = "SchemaValidationError"
+rule_id = "R-error-channel-003"
+rule_name = "halt semantics"
+reference = "components/error-channel/reference.md"
+statement = '''
+Any error class halts channel-writing nodes — transform, service,
+and trainable composition dispatches.
+Hooks have a bounded two-case rule: operational PipelineFailure
+(network unreachable, remote 5xx, timeout) is caught by the
+runner's hook wrapper and execution continues; ContractViolation
+and SchemaValidationError from a hook still halt.
+
+The wrapper sanction applies to hooks specifically because their
+kind admits no outgoing channels — hooks return None and the
+runner has no merge path for a hook return. Operational failure
+in a hook loses a side-effect record but cannot corrupt downstream
+handler inputs, because no downstream node reads channels from a
+hook. Channel-writing nodes halt on every error class because
+they write to channels; a swallowed failure would produce a
+channel value the runner cannot distinguish from a successful one,
+propagating corruption downstream.
+
+The wrapper sanction is a property of the hook kind (its graph
+position admits no outgoing channels), not a per-handler except;
+in-body except in any handler body is itself a violation.
+'''
+
+[[audit_codes]]
+audit_code = "C1.PIPELINE_FAILURE_WRAP.001"
+check = "pipeline-failure-wrap"
+error_class = "PipelineFailure"
+rule_id = "R-error-channel-001"
+rule_name = "closed-enum error classes"
+reference = "components/error-channel/reference.md"
+statement = '''
+The engine raises a closed-enum set of error classes, partitioned by where in
+the type system the failure originates:
+
+- **ContractViolation** — structural type-check failure. A channel, kwarg, or
+  field is declared but absent, or present but undeclared; the interface's
+  declaration set is structurally wrong. Examples: a handler returns a key absent
+  from `output_schema` (undeclared write); a declaration carries an unknown field
+  name; a Python signature carries a kwarg absent from `reads` (signature
+  mismatch); a required `output_schema` field is omitted from the return dict
+  (missing declared write); `service_bindings` appears on a transform declaration
+  (kind-grammar violation); a binding-value declaration referenced by a handler
+  entry fails to resolve; a qualified-name reference fails to resolve. Raised at
+  handler-declaration load, at pipeline compose time, or at the dispatch boundary
+  (a declaration-existence mismatch on the return dict, a hook's non-`None`
+  return, a missing declared input at the API boundary).
+
+- **SchemaValidationError** — value-level type-check failure within declared
+  fields. The declaration set is structurally intact; a value violates its
+  declared type. Examples: a declared `int` field receives `str`; a declared
+  regex-constrained string fails its pattern; a declared enum field receives an
+  out-of-set value. Raised by Pydantic validation against the declaration-derived
+  class — at pre-dispatch kwarg projection (validating `reads` channel values) and
+  at post-dispatch return-dict validation (validating the handler's return dict
+  against `output_schema`).
+
+- **PipelineFailure** — runtime failure not caught by static type-check. Wraps
+  the underlying exception, carrying its verbatim type in an open `cause_class`
+  field (e.g., `TimeoutError`, `ConnectionError`) and the structural locus in a
+  closed `failure_category` field (`service` / `handler` / `engine`). These two
+  fields are the consumer's dispatch surface for runtime failure — no named
+  sub-class of `PipelineFailure` exists and none is needed: halt semantics are
+  identical across all runtime failures, so the distinctions consumers route on
+  ride fields, not an inflated error-class vocabulary.
+
+The enum is closed: consumers may rely on the exhaustive enumeration at dispatch
+time, and extending it is an engine change with an architecture decision, not a
+runtime extension. The runner enforces the guarantee at the dispatch boundary: any
+uncaught exception not already a `ContractViolation` or `SchemaValidationError` is
+wrapped into `PipelineFailure` before surfacing through the error channel.
+
+The key-set→ContractViolation routing is scoped by boundary. Key-set faults — a
+key, kwarg, or field undeclared, or a required declaration missing — raise
+ContractViolation at declaration/compose surfaces and at the **output** boundary
+(the return-dict validation, per R-handler-001's output validation). At the
+**API** boundary (the pipeline-level `inputs` pre-validation of the incoming
+request per R-pipeline-001, before any node dispatches), the routing covers the
+**missing-declared-input direction only**: a declared input field absent from
+the incoming request raises ContractViolation; an undeclared key in the
+incoming request is **not admitted but not an error** — the runner seeds only
+the declared input channels, so an extra never becomes a channel
+(R-pipeline-001's `api-inputs-enforcement` fragment owns the admission rule).
+At the **input** boundary — the per-dispatch reads-projection, where the kwargs
+are the engine's own assembly rather than an author's declared return — every
+validation failure, key-set faults included, surfaces as SchemaValidationError.
+'''
+
+[[checks]]
+check = "handler-kind-header"
+error_class = "ContractViolation"
+rule_ids = ["R-handler-003", "R-handler-006"]
+rule_names = ["closed-enum handler kinds", "closed handler-declaration shape grammar"]
+references = ["components/handler/reference.md"]
+
+[[checks]]
+check = "closed-grammar"
+error_class = "ContractViolation"
+rule_ids = ["R-deployment-001", "R-deployment-002", "R-handler-004", "R-handler-006", "R-handler-010", "R-pipeline-001", "R-pipeline-002", "R-service-type-001"]
+rule_names = ["closed deployment-declaration grammar", "shared-by-binding transport resolution with per-pipeline override", "transform purity", "closed handler-declaration shape grammar", "trainable composition has no author body", "compose-time composition validation", "channel-write disjointness with merge opt-in", "closed service-type declaration grammar"]
+references = ["components/deployment/reference.md", "components/handler/reference.md", "components/pipeline/reference.md", "components/service-type/reference.md"]
+
+[[checks]]
+check = "section-presence"
+error_class = "ContractViolation"
+rule_ids = ["R-deployment-001", "R-handler-006", "R-service-type-001"]
+rule_names = ["closed deployment-declaration grammar", "closed handler-declaration shape grammar", "closed service-type declaration grammar"]
+references = ["components/deployment/reference.md", "components/handler/reference.md", "components/service-type/reference.md"]
+
+[[checks]]
+check = "body-required"
+error_class = "ContractViolation"
+rule_ids = ["R-deployment-001", "R-handler-006", "R-pipeline-001", "R-service-type-001"]
+rule_names = ["closed deployment-declaration grammar", "closed handler-declaration shape grammar", "compose-time composition validation", "closed service-type declaration grammar"]
+references = ["components/deployment/reference.md", "components/handler/reference.md", "components/pipeline/reference.md", "components/service-type/reference.md"]
+
+[[checks]]
+check = "channel-type-token"
+error_class = "ContractViolation"
+rule_ids = ["R-handler-006", "R-pipeline-001", "R-service-type-001"]
+rule_names = ["closed handler-declaration shape grammar", "compose-time composition validation", "closed service-type declaration grammar"]
+references = ["components/handler/reference.md", "components/pipeline/reference.md", "components/service-type/reference.md"]
+
+[[checks]]
+check = "nullable-placement"
+error_class = "ContractViolation"
+rule_ids = ["R-service-type-001"]
+rule_names = ["closed service-type declaration grammar"]
+references = ["components/service-type/reference.md"]
+
+[[checks]]
+check = "unknown-composition-kind"
+error_class = "ContractViolation"
+rule_ids = ["R-handler-006"]
+rule_names = ["closed handler-declaration shape grammar"]
+references = ["components/handler/reference.md"]
+
+[[checks]]
+check = "malformed-declaration"
+error_class = "ContractViolation"
+rule_ids = ["R-deployment-001", "R-deployment-002", "R-handler-006", "R-handler-010", "R-handler-011", "R-pipeline-001", "R-pipeline-002", "R-service-type-001"]
+rule_names = ["closed deployment-declaration grammar", "shared-by-binding transport resolution with per-pipeline override", "closed handler-declaration shape grammar", "trainable composition has no author body", "prompt-shaping content via trainable.reads", "compose-time composition validation", "channel-write disjointness with merge opt-in", "closed service-type declaration grammar"]
+references = ["components/deployment/reference.md", "components/handler/reference.md", "components/pipeline/reference.md", "components/service-type/reference.md"]
+
+[[checks]]
+check = "handler-name-resolution"
+error_class = "ContractViolation"
+rule_ids = ["R-pipeline-001"]
+rule_names = ["compose-time composition validation"]
+references = ["components/pipeline/reference.md"]
+
+[[checks]]
+check = "service-type-resolution"
+error_class = "ContractViolation"
+rule_ids = ["R-pipeline-001", "R-service-type-004"]
+rule_names = ["compose-time composition validation", "one implementation per service-type qualified name"]
+references = ["components/pipeline/reference.md", "components/service-type/reference.md"]
+
+[[checks]]
+check = "bundle-reaches-byref-fold"
+error_class = "ContractViolation"
+rule_ids = ["R-pipeline-001"]
+rule_names = ["compose-time composition validation"]
+references = ["components/pipeline/reference.md"]
+
+[[checks]]
+check = "composition-embed-cycle"
+error_class = "ContractViolation"
+rule_ids = ["R-pipeline-001"]
+rule_names = ["compose-time composition validation"]
+references = ["components/pipeline/reference.md"]
+
+[[checks]]
+check = "read-write-shape-mismatch"
+error_class = "ContractViolation"
+rule_ids = ["R-pipeline-001"]
+rule_names = ["compose-time composition validation"]
+references = ["components/pipeline/reference.md"]
+
+[[checks]]
+check = "wiring-map-port"
+error_class = "ContractViolation"
+rule_ids = ["R-pipeline-001"]
+rule_names = ["compose-time composition validation"]
+references = ["components/pipeline/reference.md"]
+
+[[checks]]
+check = "dangling-identity-port"
+error_class = "ContractViolation"
+rule_ids = ["R-pipeline-001"]
+rule_names = ["compose-time composition validation"]
+references = ["components/pipeline/reference.md"]
+
+[[checks]]
+check = "read-port-unclosed"
+error_class = "ContractViolation"
+rule_ids = ["R-pipeline-001"]
+rule_names = ["compose-time composition validation"]
+references = ["components/pipeline/reference.md"]
+
+[[checks]]
+check = "single-assignment"
+error_class = "ContractViolation"
+rule_ids = ["R-pipeline-001"]
+rule_names = ["compose-time composition validation"]
+references = ["components/pipeline/reference.md"]
+
+[[checks]]
+check = "channel-write-overlap"
+error_class = "ContractViolation"
+rule_ids = ["R-pipeline-002"]
+rule_names = ["channel-write disjointness with merge opt-in"]
+references = ["components/pipeline/reference.md"]
+
+[[checks]]
+check = "merge-strategy-type"
+error_class = "ContractViolation"
+rule_ids = ["R-pipeline-002"]
+rule_names = ["channel-write disjointness with merge opt-in"]
+references = ["components/pipeline/reference.md"]
+
+[[checks]]
+check = "binding-supply-incomplete"
+error_class = "ContractViolation"
+rule_ids = ["R-handler-006", "R-pipeline-001"]
+rule_names = ["closed handler-declaration shape grammar", "compose-time composition validation"]
+references = ["components/handler/reference.md", "components/pipeline/reference.md"]
+
+[[checks]]
+check = "service-binding-cardinality"
+error_class = "ContractViolation"
+rule_ids = ["R-handler-008", "R-handler-009"]
+rule_names = ["exactly one service-typed binding (service handler and trainable composition node)", "hook binding cardinality"]
+references = ["components/handler/reference.md"]
+
+[[checks]]
+check = "identity-transport-placement"
+error_class = "ContractViolation"
+rule_ids = ["R-pipeline-001"]
+rule_names = ["compose-time composition validation"]
+references = ["components/pipeline/reference.md"]
+
+[[checks]]
+check = "transport-coverage-gap"
+error_class = "ContractViolation"
+rule_ids = ["R-pipeline-001"]
+rule_names = ["compose-time composition validation"]
+references = ["components/pipeline/reference.md"]
+
+[[checks]]
+check = "hook-transport-coverage-gap"
+error_class = "ContractViolation"
+rule_ids = ["R-pipeline-001"]
+rule_names = ["compose-time composition validation"]
+references = ["components/pipeline/reference.md"]
+
+[[checks]]
+check = "inputs-outputs-dead-declaration"
+error_class = "ContractViolation"
+rule_ids = ["R-pipeline-001"]
+rule_names = ["compose-time composition validation"]
+references = ["components/pipeline/reference.md"]
+
+[[checks]]
+check = "config-schema-supply"
+error_class = "ContractViolation"
+rule_ids = ["R-service-type-002"]
+rule_names = ["config-schema contract"]
+references = ["components/service-type/reference.md"]
+
+[[checks]]
+check = "streamable-terminal-node"
+error_class = "ContractViolation"
+rule_ids = ["R-pipeline-001"]
+rule_names = ["compose-time composition validation"]
+references = ["components/pipeline/reference.md"]
+
+[[checks]]
+check = "streamable-backend-support"
+error_class = "ContractViolation"
+rule_ids = ["R-handler-008"]
+rule_names = ["exactly one service-typed binding (service handler and trainable composition node)"]
+references = ["components/handler/reference.md"]
+
+[[checks]]
+check = "streamable-sink-target"
+error_class = "ContractViolation"
+rule_ids = ["R-pipeline-001"]
+rule_names = ["compose-time composition validation"]
+references = ["components/pipeline/reference.md"]
+
+[[checks]]
+check = "deployment-override-target"
+error_class = "ContractViolation"
+rule_ids = ["R-deployment-002"]
+rule_names = ["shared-by-binding transport resolution with per-pipeline override"]
+references = ["components/deployment/reference.md"]
+
+[[checks]]
+check = "name-uniqueness"
+error_class = "ContractViolation"
+rule_ids = ["R-handler-006", "R-pipeline-001", "R-service-type-001"]
+rule_names = ["closed handler-declaration shape grammar", "compose-time composition validation", "closed service-type declaration grammar"]
+references = ["components/handler/reference.md", "components/pipeline/reference.md", "components/service-type/reference.md"]
+
+[[checks]]
+check = "handler-module-import"
+error_class = "ContractViolation"
+rule_ids = ["R-handler-012", "R-pipeline-001", "R-service-type-003"]
+rule_names = ["validator registration and binding contract", "compose-time composition validation", "service-impl dispatch contract"]
+references = ["components/handler/reference.md", "components/pipeline/reference.md", "components/service-type/reference.md"]
+
+[[checks]]
+check = "handler-namespace-package"
+error_class = "ContractViolation"
+rule_ids = ["R-handler-012", "R-pipeline-001", "R-service-type-003"]
+rule_names = ["validator registration and binding contract", "compose-time composition validation", "service-impl dispatch contract"]
+references = ["components/handler/reference.md", "components/pipeline/reference.md", "components/service-type/reference.md"]
+
+[[checks]]
+check = "module-origin-divergence"
+error_class = "ContractViolation"
+rule_ids = ["R-handler-012", "R-pipeline-001", "R-service-type-003"]
+rule_names = ["validator registration and binding contract", "compose-time composition validation", "service-impl dispatch contract"]
+references = ["components/handler/reference.md", "components/pipeline/reference.md", "components/service-type/reference.md"]
+
+[[checks]]
+check = "handler-pure-module"
+error_class = "ContractViolation"
+rule_ids = ["R-handler-pure-module"]
+rule_names = ["handler module purity"]
+references = ["components/handler/reference.md"]
+
+[[checks]]
+check = "handler-function-shape"
+error_class = "ContractViolation"
+rule_ids = ["R-handler-bare-function"]
+rule_names = ["handler function-shape check (vector-2 seal)"]
+references = ["components/handler/reference.md"]
+
+[[checks]]
+check = "handler-signature-mismatch"
+error_class = "ContractViolation"
+rule_ids = ["R-handler-001"]
+rule_names = ["engine-constructed dispatch wrapper"]
+references = ["components/handler/reference.md"]
+
+[[checks]]
+check = "entry-point-collision"
+error_class = "ContractViolation"
+rule_ids = ["R-handler-012", "R-pipeline-001", "R-service-type-004"]
+rule_names = ["validator registration and binding contract", "compose-time composition validation", "one implementation per service-type qualified name"]
+references = ["components/handler/reference.md", "components/pipeline/reference.md", "components/service-type/reference.md"]
+
+[[checks]]
+check = "adapter-pure-module"
+error_class = "ContractViolation"
+rule_ids = ["R-handler-pure-module", "R-service-type-003"]
+rule_names = ["handler module purity", "service-impl dispatch contract"]
+references = ["components/handler/reference.md", "components/service-type/reference.md"]
+
+[[checks]]
+check = "adapter-signature-mismatch"
+error_class = "ContractViolation"
+rule_ids = ["R-service-type-002", "R-service-type-003"]
+rule_names = ["config-schema contract", "service-impl dispatch contract"]
+references = ["components/service-type/reference.md"]
+
+[[checks]]
+check = "audit-stamp-not-fresh"
+error_class = "ContractViolation"
+rule_ids = ["R-handler-pure-module"]
+rule_names = ["handler module purity"]
+references = ["components/handler/reference.md"]
+
+[[checks]]
+check = "audit-stamp-malformed"
+error_class = "ContractViolation"
+rule_ids = ["R-handler-pure-module"]
+rule_names = ["handler module purity"]
+references = ["components/handler/reference.md"]
+
+[[checks]]
+check = "adapter-construction"
+error_class = "ContractViolation"
+rule_ids = ["R-service-type-003"]
+rule_names = ["service-impl dispatch contract"]
+references = ["components/service-type/reference.md"]
+
+[[checks]]
+check = "engine-owned-identity"
+error_class = "ContractViolation"
+rule_ids = ["R-service-type-004"]
+rule_names = ["one implementation per service-type qualified name"]
+references = ["components/service-type/reference.md"]
+
+[[checks]]
+check = "trainable-backend-certification"
+error_class = "ContractViolation"
+rule_ids = ["R-handler-008"]
+rule_names = ["exactly one service-typed binding (service handler and trainable composition node)"]
+references = ["components/handler/reference.md"]
+
+[[checks]]
+check = "trainable-constraint-unsupported"
+error_class = "ContractViolation"
+rule_ids = ["R-handler-005"]
+rule_names = ["literal-equal rule"]
+references = ["components/handler/reference.md"]
+
+[[checks]]
+check = "validator-signature-mismatch"
+error_class = "ContractViolation"
+rule_ids = ["R-handler-012"]
+rule_names = ["validator registration and binding contract"]
+references = ["components/handler/reference.md"]
+
+[[checks]]
+check = "validator-parameter-binding"
+error_class = "ContractViolation"
+rule_ids = ["R-handler-012"]
+rule_names = ["validator registration and binding contract"]
+references = ["components/handler/reference.md"]
+
+[[checks]]
+check = "undeclared-output-key"
+error_class = "ContractViolation"
+rule_ids = ["R-handler-001"]
+rule_names = ["engine-constructed dispatch wrapper"]
+references = ["components/handler/reference.md"]
+
+[[checks]]
+check = "missing-declared-write"
+error_class = "ContractViolation"
+rule_ids = ["R-handler-001"]
+rule_names = ["engine-constructed dispatch wrapper"]
+references = ["components/handler/reference.md"]
+
+[[checks]]
+check = "return-shape"
+error_class = "ContractViolation"
+rule_ids = ["R-handler-001"]
+rule_names = ["engine-constructed dispatch wrapper"]
+references = ["components/handler/reference.md"]
+
+[[checks]]
+check = "hook-return-not-none"
+error_class = "ContractViolation"
+rule_ids = ["R-error-channel-003", "R-handler-001"]
+rule_names = ["halt semantics", "engine-constructed dispatch wrapper"]
+references = ["components/error-channel/reference.md", "components/handler/reference.md"]
+
+[[checks]]
+check = "halt-on-input-validation-error"
+error_class = "SchemaValidationError"
+rule_ids = ["R-error-channel-003"]
+rule_names = ["halt semantics"]
+references = ["components/error-channel/reference.md"]
+
+[[checks]]
+check = "halt-on-schema-validation-error"
+error_class = "SchemaValidationError"
+rule_ids = ["R-error-channel-003"]
+rule_names = ["halt semantics"]
+references = ["components/error-channel/reference.md"]
+
+[[checks]]
+check = "external-binding-content-unsupported"
+error_class = "ContractViolation"
+rule_ids = ["R-pipeline-001"]
+rule_names = ["compose-time composition validation"]
+references = ["components/pipeline/reference.md"]
+
+[[checks]]
+check = "api-invocation-declared-inputs-enforcement"
+error_class = "ContractViolation"
+rule_ids = ["R-pipeline-001"]
+rule_names = ["compose-time composition validation"]
+references = ["components/pipeline/reference.md"]
+
+[[checks]]
+check = "pipeline-failure-wrap"
+error_class = "PipelineFailure"
+rule_ids = ["R-error-channel-001"]
+rule_names = ["closed-enum error classes"]
+references = ["components/error-channel/reference.md"]
+
+[[checks]]
+check = "compile-signature"
+error_class = "ContractViolation"
+rule_ids = ["R-pipeline-001"]
+rule_names = ["compose-time composition validation"]
+references = ["components/pipeline/reference.md"]
+
+[[checks]]
+check = "compile-artifact"
+error_class = "ContractViolation"
+rule_ids = ["R-pipeline-001"]
+rule_names = ["compose-time composition validation"]
+references = ["components/pipeline/reference.md"]
+
+[[checks]]
+check = "binding-value-shape"
+error_class = "ContractViolation"
+rule_ids = ["R-pipeline-001"]
+rule_names = ["compose-time composition validation"]
+references = ["components/pipeline/reference.md"]
+
+[[checks]]
+check = "explicit-null-target"
+error_class = "ContractViolation"
+rule_ids = ["R-pipeline-001"]
+rule_names = ["compose-time composition validation"]
+references = ["components/pipeline/reference.md"]
+
+[[checks]]
+check = "transport-handle-coherence"
+error_class = "ContractViolation"
+rule_ids = ["R-pipeline-001"]
+rule_names = ["compose-time composition validation"]
+references = ["components/pipeline/reference.md"]
+
+[[checks]]
+check = "trained-artifact-manifest-missing"
+error_class = "ContractViolation"
+rule_ids = ["R-pipeline-003"]
+rule_names = ["trained-artifact integrity enforcement"]
+references = ["components/pipeline/reference.md"]
+
+[[checks]]
+check = "trained-artifact-manifest-malformed"
+error_class = "ContractViolation"
+rule_ids = ["R-pipeline-003"]
+rule_names = ["trained-artifact integrity enforcement"]
+references = ["components/pipeline/reference.md"]
+
+[[checks]]
+check = "training-bundle-hash-mismatch"
+error_class = "ContractViolation"
+rule_ids = ["R-pipeline-003"]
+rule_names = ["trained-artifact integrity enforcement"]
+references = ["components/pipeline/reference.md"]
+
+[[checks]]
+check = "artifact-trainable-unknown"
+error_class = "ContractViolation"
+rule_ids = ["R-pipeline-003"]
+rule_names = ["trained-artifact integrity enforcement"]
+references = ["components/pipeline/reference.md"]
+
+[[checks]]
+check = "secret-ref-malformed"
+error_class = "ContractViolation"
+rule_ids = ["R-deployment-003"]
+rule_names = ["secret references — validated shape, engine-never-fetches resolution"]
+references = ["components/deployment/reference.md"]
+
+[[checks]]
+check = "secret-ref-scheme-unknown"
+error_class = "ContractViolation"
+rule_ids = ["R-deployment-003"]
+rule_names = ["secret references — validated shape, engine-never-fetches resolution"]
+references = ["components/deployment/reference.md"]
+
+[[checks]]
+check = "secret-resolver-invalid"
+error_class = "ContractViolation"
+rule_ids = ["R-deployment-003"]
+rule_names = ["secret references — validated shape, engine-never-fetches resolution"]
+references = ["components/deployment/reference.md"]

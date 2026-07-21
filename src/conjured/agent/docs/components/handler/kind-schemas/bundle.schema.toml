@@ -1,0 +1,110 @@
+# GENERATED from conjured/docs by tools/build_agent_surface.py — DO NOT EDIT
+# =============================================================================
+# Conjured composition-TOML schema — BUNDLE kind
+# =============================================================================
+#
+# Schema for authoring `bundle` composition TOMLs — the pure-substitution
+# composition kind: a reusable fragment of pipeline `nodes`, embeddable at any
+# unlabeled node-sequence position (handler/reference.md § A composition
+# mirrors the pipeline owns the embed-position boundary; a trainable's
+# id-labeled [[preprocessors]] admits handler entries only). The enclosing
+# unit references this TOML from a `kind = "composition"` node entry; the
+# embedded `meta.kind = "bundle"` discriminates the specialization. The kind's grammar and semantics are owned
+# at handler/reference.md § The bundle composition kind; the hash treatment at
+# hash-model.md § What the pipeline-hash absorbs (the inlined pure-substitution
+# contribution under the mirror-pipeline principle); the embed mechanics at
+# handler/reference.md § A composition mirrors the pipeline.
+#
+# The body IS the pipeline `nodes` grammar (the mirror-pipeline principle: one
+# grammar, one parser across both layers) — and ONLY the `nodes` grammar. A
+# bundle's grammar is minimal by design: [meta] (`kind = "bundle"`, `name`),
+# the [[nodes]] sequence, optionally [annotations]. The engine textually
+# substitutes the bundle's `nodes` content into the enclosing node sequence at
+# the embed point at compose, BEFORE scoping and hashing: every downstream
+# concern — validation, type-checking, merge resolution, hash computation,
+# dispatch-graph construction — operates on the post-substitute inlined form
+# as if the handlers had been declared directly in the enclosing unit. A
+# bundle's channel names therefore continue the ENCLOSING scope by name: it
+# declares no [inputs]/[outputs] boundary, no [merge], no
+# [service_bindings.<name>] supply, has no scoped channels, no engine-owned
+# dispatch, and no own hash domain (its content folds into the enclosing
+# unit's hash like directly-declared nodes — hash-model.md § What the
+# pipeline-hash absorbs). A
+# bundle's structural role is authoring-time DRY convenience; it is invisible
+# at every layer downstream of compose-time substitution.
+#
+# Use this file as a starting template:
+#   1. Copy this file to the bundle's intended path.
+#   2. Delete the [meta] table of this schema (schema-only); author your own
+#      [meta] block per § [meta] below.
+#   3. Author the [[nodes]] entries per § [[nodes]] below (the pipeline
+#      node-entry grammar, owned at pipeline/reference.md § nodes).
+#
+# Convention details: see kind-schemas/README.md.
+
+[meta]
+schema_for = "bundle"
+summary = "Pure-substitution bundle composition TOML. A reusable fragment of pipeline nodes: [meta] (kind = 'bundle', name), a [[nodes]] sequence in the exact pipeline node-entry grammar, optionally [annotations] — nothing else. Textually substituted into the enclosing node sequence before scoping and hashing: channels continue the enclosing scope by name (no [inputs]/[outputs] boundary, no [merge], no [service_bindings.<name>], no scoped channels), and there is no own hash domain — the content folds into the enclosing unit's hash like directly-declared nodes."
+
+# -----------------------------------------------------------------------------
+# [meta] (in the authored composition TOML — distinct from this schema's [meta])
+# -----------------------------------------------------------------------------
+# discipline: required, body-required
+# notes: Every bundle composition TOML carries `kind = "bundle"` and a `name`.
+#        `kind` is the composition-TOML discriminator; the realized
+#        composition-kind set is owned at the handler reference's grammar (the
+#        composition-kind roster). The block's key set is closed — {kind, name}
+#        (R-handler-006, the composition [meta] grammar). `name` is the
+#        bundle's reference identity for authoring and tooling; it is identity —
+#        not hashed (the family rule; hash-model.md § What the pipeline-hash
+#        absorbs), and after substitution the bundle contributes no node of
+#        its own, so the name never appears in the dispatch graph.
+#
+# Example authored block:
+#   [meta]
+#   kind = "bundle"
+#   name = "npc_prompt_prep"
+
+# -----------------------------------------------------------------------------
+# [[nodes]] sequence — pipeline node entries (the substituted content)
+# -----------------------------------------------------------------------------
+# discipline: structural (node-sequence), NON-EMPTY — the ordered node sequence spliced into the enclosing unit at the embed point; at least one entry is required (an empty bundle substitutes nothing and is a compose-time ContractViolation). R-pipeline-001 governs the post-substitute graph.
+# notes: The exact node-entry grammar the pipeline's `nodes` uses — per-kind
+#        closed key sets, key semantics, wiring maps, and identity desugar are
+#        ALL owned at pipeline/reference.md § nodes; the bundle adds nothing
+#        and this schema restates none of it. Source order IS the substituted
+#        dispatch order at the embed point. Channel names wire against the
+#        ENCLOSING scope after substitution — a read that nothing upstream
+#        writes, a write colliding with another contributor, or an unsupplied
+#        service-typed binding is diagnosed on the post-substitute graph by
+#        the enclosing unit's own compose-time validation, exactly as for
+#        directly-declared nodes. Both entry arms are admitted: kind =
+#        "handler" (a bare-function handler name-reference) and kind =
+#        "composition" (a nested embed, resolved by ITS meta.kind — a nested
+#        bundle substitutes recursively; an own-hash-domain kind folds by
+#        reference; a transitive self-embed is rejected at compose).
+#
+# Example authored block (two nodes; further [[nodes]] entries follow in
+# declared = substituted dispatch order):
+#   [[nodes]]
+#   kind = "handler"
+#   name = "acme_prompt.handlers.normalize_input"
+#   reads_map  = { raw = "player_input" }             # input-port -> enclosing channel
+#   writes_map = { clean = "normalized_input" }       # output-port -> enclosing channel
+#
+#   [[nodes]]
+#   kind = "handler"
+#   name = "acme_prompt.handlers.assemble_prompt"
+#   bindings = { template = "{context}\n{utterance}" }  # supplied binding VALUE
+
+# -----------------------------------------------------------------------------
+# [annotations] section
+# -----------------------------------------------------------------------------
+# discipline: truly optional (exhaustive-declaration § The section-discipline modes owns the mode)
+# notes: Free-form author prose about the bundle — engine-opaque, metadata-class,
+#        excluded from every hash (a bundle contributes no hash domain of its
+#        own, and annotations are excluded even from the enclosing fold —
+#        handler/reference.md § annotations owns the discipline).
+
+[annotations]
+# purpose = "Shared prompt-prep sequence for the acme NPC pipelines."

@@ -1,0 +1,177 @@
+# conjured — the handler-composition engine package.
+# A typed dataflow language for handler composition (type-checker + dispatch
+# runtime). The canonical spec ships in conjured/docs/; build state is in git.
+
+# setuptools>=77 is the floor for the PEP 639 SPDX `license` expression + `license-files`
+# (both introduced in setuptools 77.0.0; an earlier floor errors on the expression form).
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "conjured"
+# Version is single-sourced from `conjured.__version__` (src/conjured/__init__.py) — the one home,
+# read at build time via [tool.setuptools.dynamic] below. A static duplicate here would drift from
+# the importable `conjured.__version__` the moment one side is bumped.
+dynamic = ["version"]
+description = "Conjured engine — a Python engine for handler composition with pipeline-as-training-contract derivation."
+readme = "README.md"                    # the PyPI long-description / landing page
+requires-python = ">=3.11"              # stdlib `tomllib` (PEP 680) is the TOML reader; sets the floor
+
+# License declared per PEP 639: an SPDX expression string + the license-file globs shipped
+# in the distribution. The deprecated `License ::` trove classifier form is intentionally
+# absent (setuptools warns on it under PEP 639). NOTICE ships alongside LICENSE per the
+# Apache-2.0 attribution requirement.
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+
+# Runtime dependencies.
+#   pydantic v2 — the engine's canonical internal representation IS Pydantic
+#     (explanation/overview.md § Pydantic as the canonical representation;
+#      hash-model.md § How the hashes are constructed). v2 line is current (2.13.x, June 2026).
+#   The TOML reader is stdlib `tomllib` (read-only, 3.11+) — the engine reads
+#     declarations, never writes TOML — so no third-party TOML dependency is needed.
+dependencies = [
+  "pydantic>=2,<3",
+]
+
+# A handful of keywords drawn from the package's own one-line description vocabulary.
+keywords = ["handler-composition", "pipeline", "typed-dataflow", "training-contract", "dispatch"]
+
+classifiers = [
+  "Development Status :: 3 - Alpha",     # engine core complete + verified; surfaces in progress
+  "Typing :: Typed",                     # ships the py.typed PEP 561 marker
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+]
+
+# Rendered as the project links on the PyPI page. Metadata is per-release — these appear
+# with the next upload. Documentation is the hosted render of the canonical docs corpus
+# at the conjured-family docs home; Repository is the public source mirror. No separate
+# Homepage: the docs page IS the project's home, and the domain root redirects there.
+[project.urls]
+Documentation = "https://rp-chat.com/conjured/"
+Repository = "https://github.com/myemfar/conjured"
+Issues = "https://github.com/myemfar/conjured/issues"
+
+# The umbrella `conjured` console command (src/conjured/cli.py), dispatching the three
+# canon-named subcommands: `conjured derivables` — the CLI half of the derivables-extraction
+# surface (components/pipeline/reference.md § Extraction surface) — and the manifest sidecar
+# pair `conjured artifact-tag` / `conjured artifact-mv` (§ The manifest CLI pair).
+[project.scripts]
+conjured = "conjured.cli:main"
+
+[project.optional-dependencies]
+# The Server component's stack — the engine's public HTTP+SSE wire surface
+# (components/server/reference.md). Kept an OPTIONAL extra, not a core runtime dep, so
+# the engine core (IR / validator / runner / hasher) stays pydantic-only for the
+# library-embedder audience; `import conjured.server` / `conjured.client` without this
+# extra raises a clear ImportError. The stack is the one blessed default (the serving
+# seam stays swappable). Versions web-verified June 2026 at decision time: starlette 1.x (1.0 stable 2026-03), uvicorn 0.49.x,
+# sse-starlette 3.x — Starlette is the minimal ASGI core, sse-starlette the maintained
+# W3C-SSE layer, uvicorn the ASGI server (native multiprocess since 0.30).
+server = [
+  "starlette>=1,<2",
+  "uvicorn>=0.30,<1",
+  "sse-starlette>=3,<4",
+]
+
+# The blessed compile-affordance compilers' backing libraries — the `compile = "jinja"` and
+# `compile = "json_schema"` directives (components/handler/reference.md § The `compile = "..."`
+# directive sub-form; `conjured.lib.compilers`). Kept an OPTIONAL extra, not a core runtime dep,
+# so the engine core (IR / validator / runner / hasher) stays pydantic-only for the
+# library-embedder audience (the same posture as the `server` extra): the compilers import their
+# backend lazily and raise a clear ImportError naming this extra when it is absent. The `regex`
+# compiler uses stdlib `re` and needs no extra. Versions web-verified June 2026 at decision time: jinja2 3.1.x, python-jsonschema 4.26.x.
+compilers = [
+  "jinja2>=3.1,<4",
+  "jsonschema>=4.26,<5",
+]
+
+# The shipping docs-site build stack (tools/docs_site/ — the in-package Sphinx build:
+# MyST corpus → Furo multi-page site + the autodoc2 API companion). Versions
+# web-verified July 2026 at decision time: Sphinx 9.x,
+# myst-parser 5.x, furo 2025.x, sphinxcontrib-mermaid 2.x, sphinx-autodoc2 0.5.x.
+# The parse-side deps (markdown-it-py / mdit-py-plugins / PyYAML) ride
+# tools/requirements.txt with the other tools.
+docs = [
+  "sphinx>=9,<10",
+  "myst-parser>=5,<6",
+  "furo>=2025",
+  "sphinxcontrib-mermaid>=2,<3",
+  "sphinx-autodoc2>=0.5,<0.6",
+]
+
+# Dev/test extras. `httpx` backs Starlette's TestClient (the in-process server tests);
+# the bundled Python client uses stdlib `urllib` at runtime (no httpx runtime dep).
+# `conjured[server]` is pulled in so the server/client suites run; `conjured[compilers]` so the
+# jinja / json_schema compiler suites run (regex needs no extra); `conjured[docs]` so the
+# docs-site build is exercisable from the dev environment.
+dev = [
+  "pytest>=8,<9",
+  "httpx>=0.27",
+  "conjured[server]",
+  "conjured[compilers]",
+  "conjured[docs]",
+]
+
+# Python entry-points groups the engine resolves handlers and adapters against.
+# Both ship **empty**: the engine's own native trainable backends (``conjured.lib``) and
+# service-type adapters (``conjured.adapters``) register no entry-point short names, so
+# these groups carry only third-party registrations. The natives resolve by qualified
+# dotted path — reached ahead of the entry-points leg through the engine's native adapter
+# table (``conjured.lib.NATIVE_TRAINABLE_ADAPTERS``, consulted by
+# ``validator.resolve_adapter``), which maps each native service-type qualified name to its
+# shipped implementation class path (so a native identity is unshadowable by any third-party
+# registration).
+
+# Bare-function handler discovery (transform / service / hook), additive to dotted-path
+# resolution — architecture/handler-resolution.md § Resolution mechanism.
+[project.entry-points."conjured.handlers"]
+
+# Service-type adapter (concrete service-implementation) discovery — the adapter sibling
+# mechanism — components/service-type/reference.md § Entry-point groups and resolution.
+[project.entry-points."conjured.service_implementations"]
+
+# The consumer testing library's pytest plugin — installing the engine makes the
+# conjured.testing registry + import-isolation fixtures available to a consumer's suite
+# (components/testing/ — the testing API surface). conjured.testing wraps the engine for
+# tests; it is a dev/test-time surface, not part of the runtime dispatch path.
+[project.entry-points.pytest11]
+conjured_testing = "conjured.testing.plugin"
+
+# The single source of the package version: the `__version__` attribute of the importable
+# `conjured` package. setuptools reads it by AST (the module imports nothing at top level, so no
+# import side effects), keeping the wheel metadata and `conjured.__version__` identical by
+# construction (resolves the `version` field declared `dynamic` in [project]).
+[tool.setuptools.dynamic]
+version = { attr = "conjured.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]                         # src-layout: the importable `conjured` package lives under src/
+
+# The agent surface ships data files inside the wheel (architecture/components.md § Agent
+# surface; error-channel/reference.md § error-classes.toml — reached via importlib.resources).
+# `py.typed` is the PEP 561 marker declaring the package ships inline types (Typing :: Typed).
+#
+# package-data below covers only IN-package data (files under src/conjured/*). The canonical
+# docs corpus (docs/) lives OUTSIDE the package, so package-data cannot reach it; it is
+# force-included into the wheel by setup.py's custom build_py — see setup.py for why the wheel
+# must carry the corpus (local error->docs resolution, RFC-9457 type = about:blank).
+[tool.setuptools.package-data]
+"conjured"             = ["py.typed"]
+# The agent surface's full artifact set: the structured error companion (*.toml), the
+# llms.txt index, the audience-filtered docs bundle (md + schema tomls), and the rendered
+# steering content — generated by tools (gen_error_index.py / build_agent_surface.py),
+# committed, freshness-gated by each generator's --check.
+"conjured.agent"       = ["*.toml", "llms.txt", "docs/**/*", "steering/*.md"]
+# The conformance kit (architecture/components.md § Conformance surface): the shipped
+# audit prompts + the native members' findings reports, reached via
+# importlib.resources.files("conjured.conformance").
+"conjured.conformance" = ["*.md", "findings/*.md"]
+# The native library ships its members' declaration TOMLs AND their sibling audit stamps
+# (<module>.audit.toml — same *.toml suffix; the audit-stamp mechanism reads each stamp
+# beside its module at resolution).
+"conjured.lib"         = ["*.toml"]

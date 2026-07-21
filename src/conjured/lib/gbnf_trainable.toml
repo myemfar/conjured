@@ -1,0 +1,73 @@
+# conjured.lib.gbnf_trainable — the service-type declaration for the llama.cpp / GBNF
+# grammar trainable backend (Pattern B: this TOML + the sibling module's GBNFTrainable
+# class + the native-library audit entry). The wire-form name says what the adapter
+# speaks (slice ruling D3); the implementation pairs by qualified name
+# (R-service-type-004).
+
+name        = "conjured.lib.gbnf_trainable"
+description = "A trainable structured-output backend speaking the llama.cpp completion wire form, with the declared output schema enforced server-side as a GBNF grammar decode constraint."
+
+# NOTE: per-field consumer prose lives in the [annotations] block below (its engine-opaque
+# free-form home — service-type/reference.md § [annotations]: "Prose beyond one sentence belongs
+# in [annotations]"). `description` as a FIELD KEY is admitted only on a trainable's
+# `output_schema` (the family rule; handler/reference.md § description-admission) — never on a
+# service-type schema field. The declaration's own top-level `description` above is a distinct,
+# still-admitted key.
+[identity_schema]                       # pipeline-level; folds into the hashes
+model = { type = "str" }
+
+[transport_schema]                      # deployment-level; never hashed
+endpoint    = { type = "str" }
+api_key_ref = { type = "secret_ref | None", nullable = true }
+timeout_ms  = { type = "int | None", nullable = true }
+
+[config_schema]                         # generation-parameter kwargs; effective values fold into the hashes
+# Declared ship-time defaults (the N2 ruling-1 dial defaults — this declaration is the
+# values' ONLY home): a composition that states a dial overrides the default; one that
+# doesn't gets the declared default — visible here, hash-covered through the effective
+# value, never a server-side unknown. Every dial always reaches the wire with a concrete
+# value; there is no unpinned-omit path.
+temperature = { type = "float", default = 0.8 }
+max_tokens  = { type = "int", default = 4096 }
+# The open sampling-tail table: the llama.cpp dials the enumerated core does not name
+# (top_p, top_k, repeat_penalty, mirostat, seed, …). Engine-opaque JSON-expressible data
+# merged verbatim into the wire body and folded into the hash as canonical data; default = {}
+# so a composition that supplies nothing gets the empty table (coverage never forces it). An
+# extras key MUST NOT name a reserved wire key — the declared dial core under BOTH its names
+# (temperature, max_tokens + its wire rendering n_predict) or a structural key
+# (model/prompt/grammar): a dial's one supply route is [trainable.config].
+extras = { type = "table", default = {} }
+
+[annotations]
+# Free-form, engine-opaque (excluded from every hash). `fields` carries the per-field consumer
+# prose that a schema field cannot (a service-type schema field admits no `description` key).
+fields = """
+identity_schema.model — GGUF model identifier the consumer's llama.cpp serving runtime hosts;
+  the composition is composed (and any fine-tune is trained) against it.
+transport_schema.endpoint — base URL of the consumer's llama-server runtime: llama.cpp's native
+  completion route lives at the server ROOT, so this value carries NO API-version segment (e.g.
+  "http://127.0.0.1:8012") and the adapter appends only the route ("/completion"). No hosted default
+  exists.
+transport_schema.api_key_ref — secret reference to the bearer token where the runtime runs with
+  --api-key: a "[scheme]payload" reference (e.g. "[env]LLM_PROD_KEY", "[file]/run/secrets/llm") the
+  adapter resolves at dispatch via the blessed resolver — never a raw token in the deployment TOML
+  (deployment reference § Secret references). The store holds the BARE token; this adapter renders
+  the "Authorization: Bearer" header itself. Null for an unauthenticated local endpoint.
+transport_schema.timeout_ms — per-call timeout in milliseconds, applied by the adapter (an
+  author-named transport passthrough); null to wait on the runtime.
+config_schema.temperature — sampling temperature; an unstated dial resolves to the declared
+  ship-time default (the serving runtime's own default never applies).
+config_schema.max_tokens — maximum tokens to generate (llama.cpp n_predict); an emission truncated
+  by this bound fails loud.
+config_schema.extras — open string-keyed table of additional generation parameters (the sampling
+  tail) passed verbatim to the wire; never a reserved wire key.
+"""
+notes = """
+The GGUF family's direct grammar path. Property-3 artifact contract: GGUF. The
+GBNF wire form expresses open-keyed dict[str, <T>] shapes the strict OpenAI form
+cannot; field validators, bytes, and fixed-arity tuple channels reject at
+compose (value predicates and non-JSON values cannot close the seal), as do
+non-ASCII field names (grammar rule names are ASCII-only), and field
+description strings cannot ride a grammar (a documented capability boundary —
+the adapter never compensates by shaping the prompt).
+"""

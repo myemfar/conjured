@@ -1,0 +1,130 @@
+# =============================================================================
+# Conjured handler-TOML schema — SERVICE kind
+# =============================================================================
+#
+# Schema for authoring service handler TOMLs. A SERVICE makes EXACTLY ONE
+# external call per invocation and returns its declared [output_schema] output
+# ports as a dict the runner routes onto channels via the node's write-map.
+# Services bind EXACTLY ONE service-type supplied at pipeline level.
+#
+# Use this file as a starting template:
+#   1. Copy this file to the handler's intended path.
+#   2. Delete the [meta] table (schema-only).
+#   3. Keep the [service] top-level header verbatim.
+#   4. Replace each section's example fields with the handler's actual fields.
+#   5. Preserve required, empty-allowed sections even when the body is empty.
+#   6. Drop the `example` key from each field declaration (schema-only).
+#
+# Convention details: see kind-schemas/README.md.
+
+[meta]
+schema_for = "service"
+top_level_header = "[service]"
+summary = "External-call handler. Exactly one external call per invocation. Receives its declared [reads] input ports + a `services` kwarg as kwargs; returns its declared [output_schema] output ports as a dict the runner routes onto channels via the node's write-map."
+
+# -----------------------------------------------------------------------------
+# Top-level kind header
+# -----------------------------------------------------------------------------
+# Top-level kind tag. Exactly one bare-function kind header (`[service]` here)
+# must appear per handler TOML — the handler-kinds architecture page and the
+# handler conformance check own the kind roster; presence here routes the entry
+# to the engine's kind-specific compose-time construction path. Not a
+# content-discipline section.
+
+[service]
+
+# -----------------------------------------------------------------------------
+# [reads] section
+# -----------------------------------------------------------------------------
+# discipline: required, empty-allowed
+# applicability: all kinds
+# notes: Each declared field is one input PORT — a kwarg-only parameter on the
+#        dispatch signature alongside the reserved `services` kwarg. The runner
+#        projects each declared input port's wired channel value (via the node's
+#        read-map) into the kwarg dict. Empty body sanctioned when the service's
+#        behavior is fully determined by [bindings.<name>] declarations (e.g., a
+#        service whose prompt template is a compose-time binding).
+
+[reads]
+example_input_port = { type = "str", example = "the prompt context for an LLM service" }
+
+# -----------------------------------------------------------------------------
+# [output_schema] section
+# -----------------------------------------------------------------------------
+# discipline: required, body-required
+# applicability: required for services; absent on hooks
+# notes: A service's [output_schema] declares the output PORTS its handler body
+#        produces from its one external call — the return dict the runner routes
+#        onto channels via the node's write-map. A service makes a plain external
+#        call and MAY call an
+#        LLM, but a service's in/out logs are provenance, not an
+#        engine-guaranteed training record. The canonical, I4-bound training
+#        path is the trainable composition kind — the literal-equal
+#        output<->backend constraint (R-handler-005) and training capture are
+#        properties of the trainable composition NODE, not of a plain service.
+
+[output_schema]
+example_output_port = { type = "str", example = "the text a summarization service returns" }
+
+# -----------------------------------------------------------------------------
+# [service_bindings] section
+# -----------------------------------------------------------------------------
+# discipline: required, body-required (exactly one entry)
+# applicability: services (exactly one entry) — the cross-kind applicability
+#                matrix is owned by the handler reference's § service_bindings
+# notes: For SERVICES, EXACTLY ONE service-typed entry MUST be declared
+#        per R-handler-008. The entry's `type` is a qualified service-type
+#        name (e.g., "acme_llm.structured_output"); the binding resolves
+#        to a `services.<name>` attribute on the runner-injected
+#        ServicesProxy. The handler invokes the bound backend via
+#        `services.<name>.invoke(...)` exactly once per invocation
+#        (atomicity per the comparison-table External-call: exactly one).
+#        A service needing multiple external resources splits into separate
+#        service handlers composed sequentially in the pipeline.
+
+[service_bindings]
+example_service_binding = { type = "<package>.<service-type-name>", example = "acme_llm.structured_output" }
+
+# -----------------------------------------------------------------------------
+# [bindings.<name>] sections — compose-time bindings
+# -----------------------------------------------------------------------------
+# discipline: required, empty-allowed (collectively; each named binding stands
+#             as its own closed-shape key; presence of any `[bindings.*]`
+#             heading is not required when zero bindings are declared)
+# applicability: all bare-function handler kinds
+# notes: `bindings.<name>` is the unified compose-time-binding declaration.
+#        Author names bindings by domain meaning —
+#        `prompt_template`, `npc`, `config`, `marker_set`, etc. Each entry
+#        declares its schema; the pipeline entry supplies the value. The supply
+#        grammar (inline, the `{ file = "..." }` external form, or the
+#        `{ null = true }` explicit null), the
+#        resolve-once / per-dispatch-copy delivery, the hash treatment, and the
+#        `default` / `compile` / `delivery` binding-declaration variants are
+#        ALL owned at the handler reference — § Binding value-supply grammar,
+#        § Ship-time defaults, § The compile directive sub-form, § Reference
+#        bindings; this schema restates none of it.
+#        Author's function signature carries one kwarg per
+#        declared bindings.<name> entry, plus the `reads` kwargs and the
+#        reserved `services` kwarg. Common service bindings: prompt templates
+#        or file-supplied prompt scaffolds, generation-config scalars, NPC
+#        personality bundles, mapping tables. N ≥ 0 bindings per handler.
+
+[bindings.config]
+temperature = { type = "float", example = "0.7" }
+prompt_template = { type = "str", example = "a templated prompt string" }
+
+# -----------------------------------------------------------------------------
+# [annotations] section
+# -----------------------------------------------------------------------------
+# discipline: truly optional
+# applicability: all kinds
+# notes: Free-form prose. Hash-neutral. This is the home for author prose about
+#        the handler and its fields — the per-field `description` key is admitted
+#        ONLY on a trainable `output_schema` field (handler reference § TOML field
+#        type discipline), so a service's field prose lives here.
+
+[annotations]
+notes = """
+One-paragraph summary of what external resource this service calls and what
+shape it returns.
+"""

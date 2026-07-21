@@ -1,0 +1,61 @@
+<!-- GENERATED — DO NOT EDIT (hash: c4b3b9831738fe25) — tools/build_agent_surface.py -->
+# Conjured — agent surface index
+
+## architecture
+- docs/architecture/components.md
+- docs/architecture/context.md
+- docs/architecture/enforcement-modes.md
+- docs/architecture/exhaustive-declaration.md
+- docs/architecture/handler-kinds.md
+- docs/architecture/handler-resolution.md
+- docs/architecture/hash-model.md
+- docs/architecture/trust-model.md
+
+## components/deployment
+- docs/components/deployment/conformance.md
+- docs/components/deployment/reference.md
+
+## components/error-channel
+- docs/components/error-channel/conformance.md
+- docs/components/error-channel/reference.md
+
+## components/handler
+- docs/components/handler/conformance.md
+- docs/components/handler/kind-schemas/README.md
+- docs/components/handler/reference.md
+
+## components/native-library
+- docs/components/native-library/conformance.md
+- docs/components/native-library/reference.md
+
+## components/pipeline
+- docs/components/pipeline/conformance.md
+- docs/components/pipeline/reference.md
+
+## components/server
+- docs/components/server/conformance.md
+- docs/components/server/reference.md
+
+## components/service-type
+- docs/components/service-type/conformance.md
+- docs/components/service-type/reference.md
+
+## components/testing
+- docs/components/testing/api.md
+- docs/components/testing/reference.md
+
+## how-to
+- docs/how-to/compose-and-run.md
+
+## reference
+- docs/reference/error-index.md
+- docs/reference/glossary.md
+- docs/reference/principles.md
+
+## steering
+- steering/exhaustive-declaration-override.md
+- steering/runtime-lookup-is-a-service.md
+- steering/service-invoke-call-convention.md
+- steering/state-across-runs.md
+- steering/test-substitution-both-declarations.md
+- steering/write-and-observe-bundle.md

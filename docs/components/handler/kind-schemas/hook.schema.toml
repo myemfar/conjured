@@ -1,0 +1,174 @@
+# =============================================================================
+# Conjured handler-TOML schema — HOOK kind
+# =============================================================================
+#
+# Schema for authoring hook handler TOMLs. A HOOK reads its declared input ports
+# (wired to channels by the node's read-map), emits externally, and writes
+# nothing back. Hooks return None by contract;
+# the runner has no merge path for a hook return. Hooks support a bounded
+# two-case emission pattern:
+#
+#   - STDLIB EMISSION:  file writes / logging / stdout / stderr.
+#                       The hook's [transport_schema] carries deployment-
+#                       local config; [service_bindings] empty.
+#   - BACKEND-SDK EMISSION:  any transport requiring an SDK forbidden in
+#                            handler-internal imports (HTTP, queues, DB
+#                            drivers, gRPC). The hook MUST declare exactly
+#                            one entry in [service_bindings]; emission
+#                            routes through services.<name>.invoke(...).
+#
+# Use this file as a starting template:
+#   1. Copy this file to the handler's intended path.
+#   2. Delete the [meta] table (schema-only).
+#   3. Keep the [hook] top-level header verbatim.
+#   4. Replace each section's example fields with the handler's actual fields.
+#   5. Pick the emission channel and follow the per-channel guidance below in
+#      the [transport_schema] and [service_bindings] sections.
+#   6. Drop the `example` key from each field declaration (schema-only).
+#
+# Convention details: see kind-schemas/README.md.
+
+[meta]
+schema_for = "hook"
+top_level_header = "[hook]"
+summary = "Observation handler. Receives its declared [reads] input ports as kwargs; emits externally via stdlib or via a bound service-type; returns None. Failure disposition: the two-case rule owned at R-error-channel-003 (halt semantics)."
+
+# -----------------------------------------------------------------------------
+# Top-level kind header
+# -----------------------------------------------------------------------------
+# Top-level kind tag. Exactly one bare-function kind header (`[hook]` here)
+# must appear per handler TOML — the handler-kinds architecture page and the
+# handler conformance check own the kind roster; presence here routes the entry
+# to the engine's kind-specific compose-time construction path. Not a
+# content-discipline section.
+
+[hook]
+
+# -----------------------------------------------------------------------------
+# [reads] section
+# -----------------------------------------------------------------------------
+# discipline: required, empty-allowed
+# applicability: all kinds
+# notes: Each declared field is one input PORT — a kwarg-only parameter on the
+#        dispatch signature. The runner projects each declared input port's
+#        wired channel value (via the node's read-map) into the kwarg dict.
+#        Empty body sanctioned when the hook's emission needs no upstream input
+#        (rare; most hooks emit observed pipeline state).
+
+[reads]
+example_input_port = { type = "str", example = "the dialogue line produced upstream" }
+
+# -----------------------------------------------------------------------------
+# [output_schema] section
+# -----------------------------------------------------------------------------
+# discipline: forbidden (kind discipline)
+# applicability: hooks have NO [output_schema]
+# notes: Hooks return None; the runner has no merge path for a hook return.
+#        Adding [output_schema] under [hook] raises ContractViolation at
+#        handler-TOML load. If the operation legitimately writes channels,
+#        it is a transform or a service, not a hook — change the kind tag.
+
+# (intentionally absent — do not add an [output_schema] section to a hook TOML)
+
+# -----------------------------------------------------------------------------
+# [service_bindings] section
+# -----------------------------------------------------------------------------
+# discipline: required, empty-allowed (section); per-kind validation
+#             conditional on emission channel
+# applicability: hooks (conditional on emission channel) — the cross-kind
+#                applicability matrix is owned by the handler reference's
+#                § service_bindings
+# notes: For HOOKS, entries are conditional:
+#
+#        STDLIB-EMISSION case: NO service-typed binding required (or
+#        permitted — adding one without a backend-SDK emission is misuse).
+#        The dispatch signature carries no `services` kwarg. Section body
+#        empty is canonical.
+#
+#        BACKEND-SDK-EMISSION case: EXACTLY ONE entry MUST be declared.
+#        The single binding routes emission through services.<name>.invoke(...);
+#        two-or-more entries raise ContractViolation at compose time per
+#        R-handler-009 (hook binding cardinality).
+
+[service_bindings]
+# Stdlib-emission case: leave empty.
+
+# Backend-SDK-emission case — uncomment + adapt:
+# example_emission_binding = { type = "<package>.<service-type-name>", example = "acme_webhook.poster" }
+
+# -----------------------------------------------------------------------------
+# [transport_schema] section
+# -----------------------------------------------------------------------------
+# discipline: required, empty-allowed
+# applicability: hooks ONLY (transforms and services have no transport_schema)
+# notes: Per-deployment transport config the hook reads at runtime — supplied
+#        by the deployment's hook_transport."<as_written_node_name>" block and
+#        delivered to the hook body as kwargs, one per field, like bindings
+#        (the field names join the R-handler-001 signature union; handler
+#        reference § transport_schema owns the delivery rule).
+#
+#        STDLIB-EMISSION case: non-empty body required. Carries deployment-
+#        local fields like log_file path, format selector, output stream.
+#
+#        BACKEND-SDK-EMISSION case: empty-but-present is canonical. The
+#        backend-SDK transport (endpoint URL, credentials, timeouts) lives
+#        in the bound service-type's own [transport_schema], not here.
+#
+#        MIXED case (stdlib AND backend-SDK): non-empty body for the
+#        stdlib-side config; the bound service-type carries the backend-
+#        SDK transport.
+
+[transport_schema]
+# Stdlib-emission example — uncomment + adapt:
+# log_file = { type = "str", example = "/var/log/conjured/dialogue.log" }
+# format = { type = "Literal['plain', 'json']", example = "json" }
+
+# Backend-SDK-emission case: leave the body empty (the section header alone).
+
+# -----------------------------------------------------------------------------
+# [bindings.<name>] sections — compose-time bindings
+# -----------------------------------------------------------------------------
+# discipline: required, empty-allowed (collectively; each named binding stands
+#             as its own closed-shape key; presence of any `[bindings.*]`
+#             heading is not required when zero bindings are declared)
+# applicability: all bare-function handler kinds
+# notes: `bindings.<name>` is the unified compose-time-binding declaration.
+#        Author names bindings by domain meaning —
+#        `config`, `event_type`, `verbosity_filter`, etc. Each entry declares
+#        its schema; the pipeline entry supplies the value. The supply grammar
+#        (inline, the `{ file = "..." }` external form, or the `{ null = true }`
+#        explicit null), the resolve-once /
+#        per-dispatch-copy delivery, the hash treatment, and the `default` /
+#        `compile` / `delivery` binding-declaration variants are ALL owned at
+#        the handler reference — § Binding value-supply grammar, § Ship-time
+#        defaults, § The compile directive sub-form, § Reference bindings; this
+#        schema restates none of it.
+#
+#        Less common on hooks than on transforms / services, but sanctioned.
+#        Common hook bindings: emission-verbosity selectors, event-type
+#        filters, hook-side templates routed through stdlib-emission. Hook
+#        bindings are author-fixed parameters; the dynamic per-dispatch
+#        emission shape lives in [reads] (channel observation) and
+#        [transport_schema] (per-deployment transport config), NOT in
+#        bindings. N ≥ 0 bindings per handler.
+
+[bindings.config]
+verbosity = { type = "Literal['INFO', 'DEBUG']", example = "INFO" }
+
+# -----------------------------------------------------------------------------
+# [annotations] section
+# -----------------------------------------------------------------------------
+# discipline: truly optional
+# applicability: all kinds
+# notes: Free-form prose. Hash-neutral. This is the home for author prose about
+#        the handler and its fields — the per-field `description` key is admitted
+#        ONLY on a trainable `output_schema` field (handler reference § TOML field
+#        type discipline), so a hook's field prose lives here.
+
+[annotations]
+notes = """
+One-paragraph summary of what this hook observes and where it emits
+(stdlib path, backend SDK service-type). Note the emission channel
+choice (stdlib / backend-SDK / mixed); the failure disposition is the
+two-case rule owned at R-error-channel-003 (halt semantics).
+"""

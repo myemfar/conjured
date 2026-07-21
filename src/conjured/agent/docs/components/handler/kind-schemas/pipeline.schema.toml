@@ -1,0 +1,187 @@
+# GENERATED from conjured/docs by tools/build_agent_surface.py — DO NOT EDIT
+# =============================================================================
+# Conjured composition-TOML schema — nested PIPELINE kind
+# =============================================================================
+#
+# Schema for authoring nested `pipeline` composition TOMLs — the
+# engine-invoking-engine composition kind: a whole pipeline declaration,
+# embeddable as a node in an enclosing pipeline. The enclosing pipeline
+# references this TOML from a `kind = "composition"` node entry; the embedded
+# `meta.kind = "pipeline"` discriminates the specialization. The kind's
+# semantics — static fixed-depth nesting, compose-time cycle rejection, halt
+# propagation, capture nesting — are owned at pipeline/reference.md § The
+# nested `pipeline` composition kind.
+#
+# The body IS the pipeline grammar (the mirror-pipeline principle: one
+# grammar, one parser across both layers). [[nodes]], [service_bindings.<name>],
+# [merge], [inputs], and [outputs] are exactly the top-level pipeline's
+# sections, each owned where pipeline/reference.md § Pipeline TOML sections
+# documents it. The ONE layer difference is [meta]: it carries the
+# composition-kind discriminator `kind = "pipeline"` alongside the family-rule
+# self-name. In particular, [outputs] follows the pipeline's
+# presence-is-the-signal arm (omit it to opt out), not the trainable
+# composition's body-required arm.
+#
+# One ordering model everywhere: source order is dispatch order, exactly as in
+# the enclosing pipeline. Channels declared inside this TOML are scoped and
+# single-assignment — the [inputs] / [outputs] boundary is the only contact
+# with the embedding pipeline: outer channels wire to the declared [inputs],
+# and the declared [outputs] wire back out, exactly as for any composition
+# embed. The TOML's own canonicalized hash IS its pipeline-hash — an
+# own-hash-domain unit, folded by reference into the enclosing unit's hash
+# (hash-model.md § What the pipeline-hash absorbs).
+#
+# Use this file as a starting template:
+#   1. Copy this file to the composition's intended path.
+#   2. Delete the [meta] table of this schema (schema-only); author your own
+#      [meta] block per § [meta] below.
+#   3. Replace each section's example fields with the pipeline's actual
+#      fields, and author the [[nodes]] entries per § [[nodes]] below.
+#   4. Follow each section's `# discipline:` comment — [inputs] is
+#      conditionally required; [outputs] is presence-is-the-signal (omit it
+#      to opt out; declare at least one field when present).
+#   5. Drop the `example` key from each field declaration (schema-only).
+#
+# Convention details: see kind-schemas/README.md.
+
+[meta]
+schema_for = "pipeline"
+summary = "Engine-invoking-engine nested pipeline composition TOML. A whole pipeline declaration embeddable as a node: the body is the exact pipeline grammar ([[nodes]], [service_bindings.<name>], [merge], [inputs], [outputs]); only [meta] differs, carrying the composition-kind discriminator kind = 'pipeline' alongside the family-rule self-name. Own hash domain — the TOML's own canonicalized hash IS its pipeline-hash, folded by reference into the enclosing unit's hash."
+
+# -----------------------------------------------------------------------------
+# [meta] (in the authored composition TOML — distinct from this schema's [meta])
+# -----------------------------------------------------------------------------
+# discipline: required, body-required
+# notes: Every nested pipeline composition TOML carries `kind = "pipeline"`
+#        and a `name`. `kind` is the composition-TOML discriminator; the
+#        realized composition-kind set is owned at the handler reference's
+#        grammar (the composition-kind roster). The block's key set is closed —
+#        {kind, name} (R-handler-006, the composition [meta] grammar). `name`
+#        MUST be unique within the embedding pipeline's namespace — it is the
+#        embed's reference identity, and the channels inside this TOML are
+#        scoped channels under it post-flatten (pipeline/reference.md § nodes,
+#        composition arm). `name` is identity — not hashed (the family rule;
+#        hash-model.md § What the pipeline-hash absorbs), so renaming is
+#        hash-neutral.
+#
+# Example authored block:
+#   [meta]
+#   kind = "pipeline"
+#   name = "npc_memory"
+
+# -----------------------------------------------------------------------------
+# [inputs] section — boundary
+# -----------------------------------------------------------------------------
+# discipline: conditionally required — required whenever the graph reads a channel before any write (R-pipeline-001 input closure; exhaustive-declaration § The section-discipline modes owns the mode)
+# notes: The pipeline's externally-seedable channels — its API. As the embed
+#        boundary, these are the channels the embedding pipeline's outer
+#        channels wire into when this TOML fills a composition node. A channel
+#        read before any write MUST be a declared input (the
+#        dangling-input-port rejection); the closure rule, the presence-only
+#        boundary validation, and the boundary semantics are owned at
+#        pipeline/reference.md § inputs / outputs. Boundary fields admit NO
+#        validation keywords (neither bare standard constraints nor namespaced
+#        third-party validators) — value constraints live on the reading
+#        node's reads / the writing node's output_schema (same owner).
+
+[inputs]
+example_input = { type = "str", example = "the memory query assembled by an upstream node" }
+
+# -----------------------------------------------------------------------------
+# [outputs] section — boundary
+# -----------------------------------------------------------------------------
+# discipline: presence-is-the-signal — body-required when present (exhaustive-declaration § The section-discipline modes owns the mode)
+# notes: Presence declares the output API commitment — the fields the
+#        embedding graph relies on receiving back from this embed on
+#        happy-path completion; compose-time validation cross-checks that
+#        every declared output field is written by a node in this
+#        composition. Absence opts out of the commitment; empty-but-present is
+#        categorically distinct from absent and is rejected. The nested
+#        `pipeline` kind follows the pipeline's presence-is-the-signal
+#        [outputs] arm, not the trainable composition's body-required arm
+#        (pipeline/reference.md § The nested `pipeline` composition kind owns
+#        the arm choice; § inputs / outputs owns the boundary semantics).
+
+[outputs]
+example_output = { type = "str", example = "the ranked recollection digest" }
+
+# -----------------------------------------------------------------------------
+# [[nodes]] sequence — pipeline node entries
+# -----------------------------------------------------------------------------
+# discipline: structural (node-sequence) — the ordered pipeline node sequence; each entry is a handler node or a composition embed (R-pipeline-001)
+# notes: The exact node-entry grammar the top-level pipeline's `nodes` uses —
+#        the per-kind closed key sets, key semantics, wiring-map data-only
+#        constraint, and identity desugar are ALL owned at pipeline/reference.md
+#        § nodes; the nested pipeline adds nothing to it and this schema
+#        restates none of it. Source order IS dispatch order. Two entry arms:
+#        kind = "handler" (a bare-function handler name-reference) and
+#        kind = "composition" (an embed of a further composition TOML — this
+#        arm is how pipelines nest further pipelines: depth fixed at compose
+#        time, a transitive self-embed rejected at compose;
+#        pipeline/reference.md § The nested `pipeline` composition kind).
+#
+# Example authored block (two nodes; further [[nodes]] entries follow in
+# declared = dispatch order). A handler entry is a name-reference: its ports
+# and binding declarations resolve from the referenced handler via `name`:
+#   [[nodes]]
+#   kind = "handler"
+#   name = "acme_memory.handlers.rank_recollections"
+#   bindings   = { top_k = 5 }                          # supplied binding VALUE
+#   reads_map  = { query = "memory_query" }             # input-port -> channel
+#   writes_map = { ranked = "ranked_recollections" }    # output-port -> channel
+#
+#   [[nodes]]
+#   kind = "composition"
+#   name = "trainables/summarize_recollections.toml"    # composition TOML path
+
+# -----------------------------------------------------------------------------
+# [service_bindings.<name>] section — service-type identity supply
+# -----------------------------------------------------------------------------
+# discipline: structural (value-supply) — one block per service-typed binding this pipeline's handlers declare; orphan supplies forbidden
+# notes: The pipeline-level decision about WHICH service implementation
+#        satisfies each handler's declared service-typed binding — the same
+#        supply grammar at both layers (the mirror-pipeline principle), owned
+#        at pipeline/reference.md § service_bindings.<name>. Each block names
+#        its `type` (the service-type qualified name, equal to the declared
+#        binding's `type`) plus the IDENTITY-field VALUES (model selector,
+#        prompt template, version selectors), validated against the bound
+#        service-type's [identity_schema] at compose; identity values are
+#        hashed. An optional nested `config` block supplies the bound
+#        service-type's generation-parameter values, validated against its
+#        [config_schema] (the supply contract and hash placement are the
+#        service-type reference's). Per-deployment TRANSPORT (endpoint,
+#        credentials, timeouts) lives in the deployment declaration's
+#        transport.<name> block, never here, and is never hashed.
+
+[service_bindings.llm_main]
+# VALUES, not a schema — the supplied identity (which implementation satisfies
+# the `llm_main` binding), validated against the bound service-type's
+# [identity_schema] at compose; identity values are hashed.
+type  = "acme_llm.structured_output"
+model = "qwen3.5-4b-gguf"
+
+[service_bindings.llm_main.config]
+# VALUES, not a schema — generation-parameter values validated against the bound
+# service-type's [config_schema] at compose (the service-type reference owns the
+# supply contract and hash placement).
+temperature = 0.7
+max_tokens  = 512
+
+# -----------------------------------------------------------------------------
+# [merge] section — channel fan-in declarations
+# -----------------------------------------------------------------------------
+# discipline: structural (value-supply) — one entry per fan-in channel (required for each channel with two-or-more contributors; R-pipeline-002 owns the rule)
+# notes: A channel's contributors are its seed (if a declared input) plus its
+#        node writes, in graph order. A channel with two or more contributors
+#        MUST carry an explicit `<channel_name> = "<strategy>"` entry naming a
+#        strategy from the closed merge-strategy registry the pipeline
+#        reference owns (§ merge.<channel> — registry membership, per-strategy
+#        type constraints, and the runtime fold semantics all live there).
+#        Merge declarations are scoped to their composition declaration —
+#        entries here cover this pipeline's own channels only, never the
+#        embedding pipeline's or an embedded composition's.
+
+[merge]
+# empty body sanctioned when this pipeline has no fan-in channels. Uncomment
+# and populate when a channel has two or more contributors.
+# example_merged_channel = "last_wins"

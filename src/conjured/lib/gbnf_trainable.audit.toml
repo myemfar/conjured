@@ -1,0 +1,5 @@
+source_hash = "36a59c2e9867d4b50b2d84def5f183f191f89f99fb78b0af2bab9750502c2425"
+audit_prompt_hash = "24376eaf1c7a1665ef99accd71eab65228b52f407d3e07018d6cf21c2ae0d513"
+verdict = "pass-with-notes"
+date = "2026-07-20"
+findings = "conjured.conformance/findings/gbnf_trainable.md"

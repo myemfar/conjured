@@ -1,0 +1,21 @@
+{
+ "audit_prompt_hash": "f43c92f982cc74721ccd1604c0da90d4248296d7b55df4ad4f1e2330a4b62f0d",
+ "corpus": {
+  "hash": "6145aa307fd30d00810ee9a32dd8bb093457e6cf4c30a0b9f1d4ace843734987",
+  "date": "2026-07-20",
+  "receipts": "stamp #75 (2026-07-20, corpus `6145aa30`, verdict clean) -- the deadline-propagation landing: the BOUNDED per-change lens re-stamp. Basis: the decided deadline-propagation design, landing at the service-type reference. The delta: (1) service-type reference gains SS Deadline propagation -- the runner passes a PARTICIPATING adapter surface (participation = the surface's signature declares the keyword-only remaining_budget_ms, per surface for invoke / invoke_streaming) the whole-run budget minus elapsed AT THE CALL MOMENT, clamped >= 0, None on an unbounded run; a participating adapter applies min(its per-call transport timeout, the remaining budget); zero is a floor (immediate timeout), the name is engine-reserved (a config/transport field under it is rejected at parse), nothing here reaches a hash; the natives participate on both surfaces. (2) SS Closed dispatch-kwargs gains the optional-kwarg pointer; SS Signature validation gains the declared-optional clause; the conformance adapter-signature row gains the same exception. (3) error-index regenerated (NAME_UNIQUENESS gains R-service-type-001 in the registration API -- the reserved-name rejection's discriminator). Code twin landed in the same diff (runner deadline threading incl. nested-embed inheritance, dispatch participation gating, the natives' min-fold at prepare_json_transport, both native stamps re-minted; 16 new tests incl. the two seals' RED arms). PRIOR -- stamp #74 (2026-07-20, corpus `4780fe39`): the compose-and-run how-to landing. negation-lens: hits classified (c), all in the SS Deadline propagation delta -- 'never outlives the run' / 'zero is a floor, not an unbounded sentinel' / 'contributes to no hash': current guarantees stated with a negative word inside affirmative-lead prose; keep.",
+  "verdict": "clean"
+ },
+ "derived_artifacts": {
+  "../README.md": {
+   "hash": "3f351189bfbdf489c4f568a57e07ec513e51d71c1d9d2219e73d567e9e6c0fc7",
+   "canon_baseline": "6145aa307fd30d00810ee9a32dd8bb093457e6cf4c30a0b9f1d4ace843734987",
+   "date": "2026-07-20"
+  },
+  "how-to/compose-and-run.md": {
+   "hash": "d06bd69a5f3fc00dc71da0c6548bf97d58221c259a3c84eecb8fc3214f36a498",
+   "canon_baseline": "6145aa307fd30d00810ee9a32dd8bb093457e6cf4c30a0b9f1d4ace843734987",
+   "date": "2026-07-20"
+  }
+ }
+}

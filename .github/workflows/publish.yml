@@ -1,0 +1,38 @@
+# Publish to PyPI via Trusted Publishing (OIDC — no API token anywhere).
+#
+# This repository is a generated read-only mirror; this workflow is regenerated on
+# each sync and fires ONLY on a deliberate version tag — it is the release publish
+# path, not development CI (nothing here runs on push or PR).
+#
+# Mechanism verified current 2026-07-20: pypa/gh-action-pypi-publish@release/v1 is
+# the blessed action; it generates + uploads PEP 740 provenance attestations by
+# default; Trusted Publishing requires the job-level `id-token: write` permission
+# and PyPI-side publisher registration (repo + workflow filename + environment).
+# Re-verify the action majors below if this file is more than ~a year old.
+name: publish
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build-and-publish:
+    name: build + publish to PyPI
+    runs-on: ubuntu-latest
+    # Single job by design: the checkout at the tag IS the tree that gets built and
+    # published — no artifact hand-off between jobs to version-drift or misdownload.
+    environment: pypi
+    permissions:
+      id-token: write # mandatory for Trusted Publishing (OIDC identity)
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install --upgrade build
+          python -m build
+      - name: Publish to PyPI (Trusted Publishing)
+        uses: pypa/gh-action-pypi-publish@release/v1

@@ -1,0 +1,70 @@
+# conjured.lib.openai_compatible_trainable — the service-type declaration for the
+# OpenAI-compatible structured-output trainable backend (Pattern B: this TOML + the
+# sibling module's OpenAICompatibleTrainable class + the native-library audit entry).
+# The wire-form name says what the adapter speaks (slice ruling D3); the implementation
+# pairs by qualified name (R-service-type-004).
+
+name        = "conjured.lib.openai_compatible_trainable"
+description = "A trainable structured-output backend speaking the OpenAI-compatible chat-completions wire form, with the declared output schema enforced server-side as a strict json_schema decode constraint."
+
+# NOTE: per-field consumer prose lives in the [annotations] block below (its engine-opaque
+# free-form home — service-type/reference.md § [annotations]: "Prose beyond one sentence belongs
+# in [annotations]"). `description` as a FIELD KEY is admitted only on a trainable's
+# `output_schema` (the family rule; handler/reference.md § description-admission) — never on a
+# service-type schema field. The declaration's own top-level `description` above is a distinct,
+# still-admitted key.
+[identity_schema]                       # pipeline-level; folds into the hashes
+model = { type = "str" }
+
+[transport_schema]                      # deployment-level; never hashed
+endpoint    = { type = "str" }
+api_key_ref = { type = "secret_ref | None", nullable = true }
+timeout_ms  = { type = "int | None", nullable = true }
+
+[config_schema]                         # generation-parameter kwargs; effective values fold into the hashes
+# Declared ship-time defaults (the N2 ruling-1 dial defaults — this declaration is the
+# values' ONLY home): a composition that states a dial overrides the default; one that
+# doesn't gets the declared default — visible here, hash-covered through the effective
+# value, never a server-side unknown. Every dial always reaches the wire with a concrete
+# value; there is no unpinned-omit path.
+temperature = { type = "float", default = 1.0 }
+max_tokens  = { type = "int", default = 4096 }
+# The open sampling-tail table: the cross-server dials the enumerated core does not name
+# (top_p, top_k, repeat_penalty, seed, logit_bias, …). Engine-opaque JSON-expressible data
+# merged verbatim into the wire body and folded into the hash as canonical data; default = {}
+# so a composition that supplies nothing gets the empty table (coverage never forces it). An
+# extras key MUST NOT name a reserved wire key (the adapter class's `reserved_wire_keys`
+# roster — the engine-owned keys; compose rejects an overlap at the disjointness check).
+extras = { type = "table", default = {} }
+
+[annotations]
+# Free-form, engine-opaque (excluded from every hash). `fields` carries the per-field consumer
+# prose that a schema field cannot (a service-type schema field admits no `description` key).
+fields = """
+identity_schema.model — model identifier the consumer's serving runtime hosts; the composition is
+  composed (and any LoRA is trained) against it.
+transport_schema.endpoint — base URL of the consumer's OpenAI-compatible serving runtime, INCLUDING
+  the API-version segment (e.g. "https://api.example.com/v1", "http://127.0.0.1:8012/v1"): the
+  adapter appends only the route ("/chat/completions"). No hosted default exists.
+transport_schema.api_key_ref — secret reference to the bearer token the serving runtime expects: a
+  "[scheme]payload" reference (e.g. "[env]LLM_PROD_KEY", "[file]/run/secrets/llm") the adapter
+  resolves at dispatch via the blessed resolver — never a raw token in the deployment TOML
+  (deployment reference § Secret references). The store holds the BARE token; this adapter renders
+  the "Authorization: Bearer" header itself. Null for an unauthenticated local endpoint.
+transport_schema.timeout_ms — per-call timeout in milliseconds, applied by the adapter (an
+  author-named transport passthrough); null to wait on the runtime.
+config_schema.temperature — sampling temperature; an unstated dial resolves to the declared
+  ship-time default (the serving runtime's own default never applies).
+config_schema.max_tokens — maximum tokens to generate; an emission truncated by this bound fails
+  loud (a truncated emission cannot satisfy the decode constraint).
+config_schema.extras — open string-keyed table of additional generation parameters (the sampling
+  tail) passed verbatim to the wire; never a reserved wire key.
+"""
+notes = """
+Covers most self-hosted serving runtimes at once (vLLM, llama-server's OpenAI
+surface, TGI, SGLang, and kin). Property-3 artifact contract: merged safetensors
+plus a PEFT/LoRA adapter. The strict wire form cannot express an open-keyed
+dict[str, <T>] (the gbnf_trainable wire form can); field validators, bytes, and
+fixed-arity tuple channels reject on every JSON wire — all at compose (the
+honest-failure caveat).
+"""

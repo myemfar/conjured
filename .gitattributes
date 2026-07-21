@@ -1,0 +1,11 @@
+# Audit-stamp source-byte stability. The audit-stamp mechanism hashes the RAW source
+# bytes of an audited module (validator/audit_stamp.py::compute_source_hash), so a shipped
+# sibling stamp (`<module>.audit.toml`) is valid only if the audited file's bytes are
+# identical everywhere the engine reads them — every dev checkout, the built wheel, and the
+# public extraction repo. Under `core.autocrlf=true` a Windows checkout would rewrite the
+# working-tree line endings to CRLF, diverging those bytes from the LF the repo stores, the
+# Linux wheel build produces, and the natives' stamps are minted over. Pin the shipping
+# source tree to LF so the source hash is platform-invariant.
+src/conjured/**/*.py    text eol=lf
+src/conjured/**/*.toml  text eol=lf
+src/conjured/**/*.md    text eol=lf

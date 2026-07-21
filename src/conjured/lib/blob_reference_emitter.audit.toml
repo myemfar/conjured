@@ -1,0 +1,5 @@
+source_hash = "5fc8be566b2449e8567d5136edc9760dd7a01831ace47e0c59858c50f5c25668"
+audit_prompt_hash = "28ca0f14ba503faa02a8e096e24a96d072f6b10ceb5c0f71b36ea63402c250c2"
+verdict = "pass"
+date = "2026-07-07"
+findings = "conjured.conformance/findings/blob_reference_emitter.md"

@@ -1,0 +1,52 @@
+# conjured.lib.blob_reference_emitter — the native blob-reference rendering hook.
+#
+# The [hook] handler declaration, the same-named sibling of blob_reference_emitter.py
+# (one TOML + one module per native member). A stdlib-emission hook: it reads a binary
+# blob's path/hash reference and emits it via stdlib logging for a downstream consumer
+# (Studio) to render. Zero service_bindings (the stdlib-emission case — R-handler-007
+# stdlib clause / R-handler-009 zero-entry case) and a non-empty transport_schema (the
+# stdlib-emission rule). The handler resolves by ordinary dotted path
+# conjured.lib.blob_reference_emitter.emit (no entry-point short name, per § Naming).
+
+[hook]
+
+[reads]
+# Exactly one required input port: the binary blob's path/hash reference (a filesystem
+# path, a content-addressed hash, an S3 key). The author wires their reference channel
+# to this port via the node's read-map. The optional <name>_hash content-addressing
+# sibling the § Channel-type discipline convention documents is the author's separate
+# concern (a rendering hook needs only the reference it renders), and the closed-set
+# reads discipline admits no optional second port.
+reference = { type = "str" }
+
+[service_bindings]
+# Empty — a stdlib-emission hook needs (and MUST NOT declare) a service-typed binding
+# (R-handler-007 stdlib clause; R-handler-009 zero-entry case). The dispatch signature
+# carries no `services` kwarg.
+
+[transport_schema]
+# Non-empty per the stdlib-emission rule. The per-deployment record-format selector,
+# delivered to the body as a kwarg like a binding. The emission sink is the documented
+# engine logger `conjured.lib.blob_reference_emitter`, configured deployment-side
+# through standard logging configuration — the member binds no log-file path of its own.
+format = { type = "Literal['plain', 'json']" }
+
+[annotations]
+# Free-form, engine-opaque (excluded from every hash). `fields` carries the per-field consumer
+# prose that a schema field cannot (a handler schema field admits no `description` key — the
+# family rule reserves it for a trainable's `output_schema`).
+fields = """
+reads.reference — the binary blob's path/hash reference, projected from the wired channel; the
+  value the hook emits.
+transport_schema.format — per-deployment record-format selector for the emitted reference line.
+"""
+notes = """
+Stdlib-emission hook: reads a binary blob's path/hash reference and emits it via
+Python's standard logging to the documented engine logger
+`conjured.lib.blob_reference_emitter`, for a downstream consumer (Studio) to render.
+Writes no channels and returns None (the runner has no merge path for a hook return,
+R-handler-001). Operational PipelineFailure (a logging handler error) is caught by the
+runner's hook wrapper per R-error-channel-003; a non-None return and any
+SchemaValidationError still halt. How the consumer renders the reference is
+consumer-side — the hook emits the value and reserves no rendering vocabulary for it.
+"""

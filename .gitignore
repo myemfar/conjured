@@ -1,0 +1,17 @@
+# Build artifacts (the mirror is read-only source; dist/ appears only when a wheel
+# is built locally for pre-tag verification).
+dist/
+build/
+*.egg-info/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+docs/_build/
+_build/
+
+# Environment — the shipped .env.example is the illustrative template; a real .env
+# never belongs in this repo.
+.env
+.env.*
+!.env.example

@@ -1,0 +1,416 @@
+# =============================================================================
+# Conjured composition-TOML schema — TRAINABLE kind
+# =============================================================================
+#
+# Schema for authoring trainable composition TOMLs — the engine-owned-dispatch
+# composition kind: a pipeline-shaped training composition with engine-
+# constructed dispatch, the preprocessor / postprocessor asymmetry, and the
+# trainable event semantics.
+#
+# A trainable TOML is a **scoped mini-pipeline** — not a single-handler TOML. It
+# declares: an explicit [inputs] / [outputs] boundary with the embedding
+# pipeline; a declared [[preprocessors]] sequence (zero or more regular
+# transforms / services / hooks composed inside the trainable's scope,
+# dispatched in declared order exactly like the outer pipeline's nodes); exactly
+# one terminal [trainable] node (engine-constructed dispatch — no author body),
+# dispatched after every preprocessor; and optional [merge] declarations scoped
+# to the trainable's internal channels.
+#
+# One ordering model everywhere: source order is dispatch order at the outer-
+# pipeline level AND inside this composition. Channels are scoped — handlers
+# inside this TOML cannot read or write outer-pipeline channels and vice versa —
+# and single-assignment, exactly as in the outer pipeline. The boundary
+# [inputs] / [outputs] are the only contact with the embedding pipeline. The
+# training-bundle-hash IS this TOML's own normalized hash (canonicalization
+# strips [annotations] and hook [[preprocessors]] entries — hooks contribute
+# to neither hash).
+#
+# Use this file as a starting template:
+#   1. Copy this file to the trainable's intended path.
+#   2. Delete the [meta] table of this schema (schema-only); author your own
+#      [meta] block per § [meta] below.
+#   3. Replace each section's example fields with the trainable composition's
+#      actual fields.
+#   4. Preserve required, empty-allowed sections even when the body is empty.
+#   5. Drop the `example` key from each field declaration (schema-only).
+#
+# Convention details: see kind-schemas/README.md.
+
+[meta]
+schema_for = "trainable"
+summary = "Scoped mini-pipeline trainable composition TOML. A self-contained training composition with an explicit [inputs]/[outputs] boundary, scoped single-assignment internal channels, a declared [[preprocessors]] sequence (dispatched in declared order), and exactly one terminal [trainable] node. The TOML's own canonicalized hash IS the training-bundle-hash ([annotations] + hook preprocessor entries stripped)."
+
+# -----------------------------------------------------------------------------
+# [meta] (in the authored trainable TOML — distinct from this schema's [meta])
+# -----------------------------------------------------------------------------
+# discipline: required, body-required
+# notes: Every trainable TOML carries `kind = "trainable"` and a `name`.
+#        `kind` is the composition-TOML discriminator; the realized
+#        composition-kind set is owned at the handler reference's grammar
+#        (the composition-kind roster).
+#        `name` MUST be unique within the embedding pipeline's namespace —
+#        post-flatten, each preprocessor inside this TOML (identified by its own
+#        `id`) gets a qualified name `<name>.<id>` and each
+#        internal channel becomes `<name>.<internal_channel_name>`.
+#
+# Example authored block:
+#   [meta]
+#   kind = "trainable"
+#   name = "dialogue_training"
+
+# -----------------------------------------------------------------------------
+# [inputs] section — boundary
+# -----------------------------------------------------------------------------
+# discipline: required, empty-allowed
+# notes: Channels this composition expects from the embedding pipeline. The
+#        embedding pipeline's composition MUST wire each declared input to one
+#        of its own channels (compose-time check). An empty [inputs] body
+#        declares a trainable composition with no boundary inputs — admissible
+#        but rare (the composition's preprocessors must then supply their
+#        own data, e.g. from content bindings).
+
+[inputs]
+example_input = { type = "str", example = "the player's most recent utterance" }
+
+# -----------------------------------------------------------------------------
+# [outputs] section — boundary
+# -----------------------------------------------------------------------------
+# discipline: required, body-required
+# notes: Channels this composition exports to the embedding pipeline. At least
+#        one [outputs] field MUST be declared — a trainable composition that
+#        exports nothing has no purpose. Each declared output MUST be produced
+#        by one of the composition's internal handlers (typically the
+#        [trainable] node's [output_schema], occasionally a postprocessor's
+#        output — but note the preprocessor/postprocessor asymmetry:
+#        postprocessors stay in the outer pipeline, NOT inside this TOML).
+#
+#        JUSTIFIED DIVERGENCE FROM THE PIPELINE: a trainable composition's [outputs]
+#        is body-required, NOT the pipeline's presence-is-the-signal [outputs] arm.
+#        The handler reference (§ reads — boundary-section discipline) owns this rule
+#        and its derivation (the trainable's output surface IS the training-record
+#        shape its training-bundle-hash covers; the nested `pipeline` kind follows the
+#        pipeline's presence-is-the-signal arm instead).
+
+[outputs]
+example_output = { type = "str", example = "the model's dialogue response" }
+
+# -----------------------------------------------------------------------------
+# [[preprocessors]] sequence — preprocessor nodes
+# -----------------------------------------------------------------------------
+# discipline: structural (node-sequence) — zero or more entries permitted; each entry is a regular handler node
+# notes: Preprocessor handlers live INSIDE the trainable TOML as a positional
+#        [[preprocessors]] array — the same node-sequence grammar the outer
+#        pipeline uses. Source order IS dispatch order; the terminal [trainable]
+#        node dispatches after every preprocessor. Each entry head carries the
+#        outer pipeline's node-entry grammar: `kind = "handler"` (the node-
+#        realization discriminator, shared with the outer grammar; this array
+#        admits handler entries ONLY — it is the one id-labeled node sequence,
+#        and composition embeds live at the unlabeled pipeline-family `nodes`
+#        layers — handler/reference.md § A composition mirrors the pipeline)
+#        and `name` (the qualified handler, e.g. "acme_dialog.handlers.assemble_prompt") —
+#        plus a composition-local `id` (unique within this composition; the
+#        internal node label that qualifies post-flatten to <meta.name>.<id>).
+#        The `id` key is the one composition-layer addition to the shared
+#        entry grammar; its justification is owned at the handler reference's
+#        R-handler-006 (composition nodes flatten into an enclosing namespace;
+#        outer-pipeline nodes have none).
+#
+#        A [[preprocessors]] entry is a handler node IN A POSITION — a
+#        name-reference to a registered handler, exactly like an outer-pipeline
+#        node. Its ports ([reads]/[output_schema]), its binding declarations (the
+#        `delivery` selector, ship-time `default`, value-validation), and a hook's
+#        [transport_schema] are owned by the referenced handler declaration and
+#        resolve via `name` — the same resolution path an outer node uses; they
+#        are never inlined on the entry. The entry's only subsection is therefore
+#        [preprocessors.bindings] — the supplied binding VALUES. (The closed-shape
+#        grammar and the not-a-distinct-kind binding rule are owned at the handler
+#        reference's R-handler-006 + the mirror-pipeline principle.)
+#        Bindings are compose-time kwargs to the handler — NOT
+#        to the trainable node ([trainable.config] handles that separately). A
+#        [preprocessors.bindings] entry is a SUPPLY — a value for a schema binding
+#        the handler declares. A handler binding declared with the compile = "..."
+#        directive is the binding itself (the engine produces its value by running
+#        the named compiler), so a preprocessor supplies NOTHING for a compile-
+#        directive binding; a value supplied for one is a compose-time
+#        ContractViolation under R-pipeline-001 binding-supply matching. The
+#        directive's resolution, compiler contract, and hash treatment are owned by
+#        the handler reference's section The compile = "..." directive sub-form.
+#
+#        The referenced handler's [reads] / [output_schema] declare its named,
+#        typed input / output PORTS — channel-agnostic shapes the handler sees,
+#        never channel names. The preprocessor entry wires those ports to this
+#        composition's internal scoped channels via `reads_map` (input-port -> channel) and
+#        `writes_map` (output-port -> channel); the wired channels are scoped to
+#        this TOML — they cannot collide with outer-pipeline channels, and they
+#        are single-assignment: to transform a value write a new channel; to
+#        combine independent contributors declare a fan-in [merge] (below). The maps
+#        are optional and per-port: an unmapped port desugars to a same-named
+#        scoped channel, so an all-identity entry may omit them entirely.
+#
+#        Declared order is semantic — it fixes dispatch order and contributes to
+#        the training-bundle-hash over the hook-stripped sequence (hook entries
+#        contribute to neither hash). Only field-key order WITHIN an entry is
+#        hash-normalized; the sequence order of the non-hook entries is preserved. A
+#        reader must appear after the entry that writes the channel it reads (the
+#        degenerate DAG implicit in the sequence, exactly as in the outer
+#        pipeline).
+#
+# Example authored block (a prompt-assembly preprocessor; further [[preprocessors]]
+# entries follow in declared = dispatch order). The entry is a name-reference: its
+# ports + binding declarations resolve from the referenced handler via `name`;
+# `reads_map` / `writes_map` wire the referenced handler's ports to this
+# composition's scoped channels:
+#   [[preprocessors]]
+#   kind = "handler"
+#   name = "acme_dialog.handlers.assemble_prompt"
+#   id   = "assemble_prompt"
+#   reads_map  = { context = "npc_state", utterance = "user_message" }  # input-port -> scoped channel
+#   writes_map = { prompt = "formatted_prompt" }                        # output-port -> scoped channel
+#
+#   [preprocessors.bindings]
+#   template = "{context}\n{utterance}"   # a SUPPLIED value for the `template`
+#                                         # binding the referenced handler declares
+#                                         # (a bare string is inline content, not a
+#                                         # path); prompt-shaping content lives HERE,
+#                                         # on a preprocessor — per R-handler-011
+#
+# The ports + binding declarations are owned by the REFERENCED handler
+# "acme_dialog.handlers.assemble_prompt" — its own transform-kind declaration
+# (authored per transform.schema.toml + the handler reference's binding grammar),
+# resolved via `name`; the preprocessor entry inlines none of them:
+#   [transform]
+#   [reads]                 # input PORTS (channel-agnostic)
+#   context = "str"
+#   utterance = "str"
+#   [output_schema]         # output PORTS (channel-agnostic)
+#   prompt = "str"
+#   # plus [bindings.template] — declares the `template` binding the entry supplies a
+#   # value for; its delivery / default / validation sub-forms are DECLARED here and
+#   # resolve for the preprocessor exactly as for an outer node (the mirror-pipeline
+#   # principle). The handler reference owns the binding-declaration grammar.
+#
+# An all-identity preprocessor (every port name == its scoped channel name) omits
+# both maps exactly as an all-identity outer node does — the referenced handler's
+# ports desugar to same-named channels.
+
+# -----------------------------------------------------------------------------
+# [service_bindings.<name>] section — the composition's own service-binding identity supply
+# -----------------------------------------------------------------------------
+# discipline: structural (value-supply) — one block per service-typed binding the
+#             composition's nodes declare (the terminal [trainable.service_bindings]
+#             backend AND any service-kind preprocessor's service-typed binding,
+#             declared on the handler it references); orphan supplies forbidden
+# notes: A composition supplies its OWN service-binding identity — which model /
+#        prompt-template satisfies each declared binding — exactly as a pipeline
+#        supplies its handlers' service-binding identity in its top-level
+#        [service_bindings.<name>] blocks (the mirror-pipeline principle: one
+#        feature, one grammar, one hash treatment across both layers). This is a
+#        SELF-CONTAINED supply: the composition decides its own backend identity,
+#        not the embedding pipeline.
+#
+#        Each block names the binding (the `<name>` matching the declared binding's
+#        local name), its `type` (the service-type qualified name, equal to the
+#        declared binding's `type`), and the IDENTITY-field VALUES (model selector,
+#        prompt-template, version selectors) validated against the bound service-
+#        type's [identity_schema] at compose. The identity values FOLD INTO THE
+#        TRAINING-BUNDLE-HASH (hash-model.md § Training-bundle-hash) — a composition-
+#        level decision defining what the trainable IS. Per-deployment TRANSPORT
+#        (endpoint, credentials, timeouts) lives in the deployment declaration's
+#        transport.<name> block, never here, and is never hashed.
+#
+# Example authored block (the trainable backend `llm` declared in
+# [trainable.service_bindings] below — its identity supplied here):
+#   [service_bindings.llm]
+#   type  = "acme_llm.dialogue"   # equals the declared binding's `type`
+#   model = "qwen3.5-4b-gguf"         # identity value (hashed)
+
+[service_bindings.llm]
+# VALUES, not a schema — the supplied identity (which model satisfies the `llm` binding),
+# validated against the bound service-type's [identity_schema] at compose; folds into the
+# training-bundle-hash. (Same value-section convention as [trainable.config] below.)
+type = "acme_llm.dialogue"
+model = "qwen3.5-4b-gguf"
+
+# -----------------------------------------------------------------------------
+# [trainable] section — the terminal trainable node (exactly one)
+# -----------------------------------------------------------------------------
+# discipline: structural (node-sequence) — exactly one per trainable TOML; the terminal node
+# notes: The trainable node is the composition's terminal node — terminal WITHIN
+#        its [[preprocessors]] sequence, dispatching after every [[preprocessors]]
+#        entry. When streamable = true it MUST also be the embedding pipeline's
+#        terminal node, so only the pipeline's hooks may follow the composition
+#        (placement rule owned by R-pipeline-001, noted under [trainable] below);
+#        a non-streamable trainable MAY have non-hook postprocessor nodes
+#        downstream in the outer pipeline (the split-with-downstream-transform
+#        pattern). It has NO author body — engine-
+#        constructed dispatch (the construction is owned at the handler
+#        reference's R-handler-010; the delivered dispatch-kwargs shape is the
+#        service-type reference's closed dispatch-kwargs contract).
+#        Keeping it a distinct section (separate from the
+#        [[preprocessors]] sequence) is what makes "exactly one", "body-less",
+#        and "terminal" structural facts rather than checks.
+#
+#        Optional top-level field on [trainable]:
+#          streamable = true|false   (default false; when true, the trainable
+#          MUST be the pipeline's terminal node — the compose-time placement
+#          rule lives in the pipeline reference, R-pipeline-001 streamable
+#          terminal-node sub-clause — and the bound backend must expose the
+#          streaming adapter surface, compose-checked). With a stream sink
+#          attached at invocation (the pipeline reference § Pipeline invocation
+#          owns the consumer surface), the backend's raw emission text streams
+#          fragment-by-fragment to the sink while the terminal dispatch is in
+#          flight; the channel still receives only the complete validated value.
+#          `streamable` is a delivery selector, NOT training-record shape — it is
+#          EXCLUDED from the training-bundle-hash (hash-model.md
+#          § Training-bundle-hash); toggling it never shifts the hash.
+
+[trainable]
+# Delivery selector; placement rule R-pipeline-001; delivery surface: the pipeline
+# reference § Pipeline invocation (`stream_sink`).
+streamable = false
+
+# -----------------------------------------------------------------------------
+# [trainable.config] subsection — compose-time generation config
+# -----------------------------------------------------------------------------
+# discipline: structural (value-supply) — required; empty-allowed (VALUES, not a schema)
+# notes: Compose-time kwargs partial-applied into the dispatch wrapper. At
+#        dispatch each reaches the adapter as its own named keyword (the reads
+#        projection arrives separately as the single `input_payload` kwarg —
+#        the closed dispatch-kwargs contract, owned at the service-type
+#        reference). Per R-handler-011
+#        (prompt-shaping content via [reads]), [trainable.config] MUST NOT
+#        contain prompt-shaping content — templates, system prompts, prompt
+#        scaffolds, or any string composed into the model's input prompt
+#        belong on a preprocessor's [bindings] feeding a trainable [reads]
+#        channel. Valid [trainable.config] fields are generation/sampling
+#        knobs (temperature, max_tokens, top_p, stop_sequences, etc.) —
+#        backend-side configuration that does not shape the prompt. The model
+#        SELECTOR is not config: it is identity, supplied via the composition's
+#        [service_bindings.<name>] block and validated against the bound
+#        service-type's [identity_schema] (hashed as identity).
+
+[trainable.config]
+# VALUES, not a schema. Each key MUST be a field declared on the bound service-type's
+# [config_schema] (validated at compose); the values fold into the training-bundle-hash
+# and reach the backend as named config kwargs on invoke(), alongside the reads
+# projection delivered as the single `input_payload` kwarg (the closed dispatch-kwargs
+# contract, owned at the service-type reference). (Contrast the schema-shape
+# of [inputs]/[outputs]/[trainable.reads] above — those declare port schemas; this supplies
+# generation-knob values, exactly as a pipeline's service_bindings supply identity values.)
+temperature = 0.7
+max_tokens = 512
+
+# -----------------------------------------------------------------------------
+# [trainable.service_bindings] subsection — the trainable backend
+# -----------------------------------------------------------------------------
+# discipline: required, body-required, exactly one entry
+# notes: Per R-handler-008 (tightened for trainables): exactly one service
+#        binding, the trainable backend. The binding name is the local
+#        binding identifier the trainable refers to internally. This block
+#        DECLARES the binding (name + `type`); its IDENTITY (which model /
+#        prompt-template) is SUPPLIED by the composition's own
+#        [service_bindings.<name>] block above — a self-contained supply,
+#        mirroring how a pipeline supplies its handlers' service-binding
+#        identity — and folds into the training-bundle-hash. The per-deployment
+#        TRANSPORT (endpoint, credentials) is supplied by the deployment.
+#        (Self-contained supply, NOT supply-from-the-embedding-pipeline.)
+
+[trainable.service_bindings]
+llm = { type = "<package>.<service-type-name>", example = "acme_llm.dialogue" }
+
+# -----------------------------------------------------------------------------
+# [trainable.reads] subsection — per-dispatch training input
+# -----------------------------------------------------------------------------
+# discipline: required, body-required
+# notes: The trainable terminal node's input ports, read from the scoped channels of
+#        the internal composition graph (typically produced by upstream preprocessor
+#        handlers). These reads
+#        are the per-dispatch training input — the trainable's `handler_enter`
+#        event carries `reads_snapshot` of exactly these channels, which IS
+#        the input side of the training record.
+#
+#        Channel-type discipline: any Pydantic-expressible type is admissible.
+#        Note R-handler-011: prompt-shaping content MUST reach
+#        the trainable through this section, not [trainable.config].
+
+[trainable.reads]
+formatted_prompt = { type = "str", example = "the prompt the model conditions on" }
+
+# -----------------------------------------------------------------------------
+# [trainable.output_schema] subsection — per-dispatch training output
+# -----------------------------------------------------------------------------
+# discipline: required, body-required
+# notes: The trainable terminal node's output port — carrying the backend's return
+#        value, routed onto the declared trainable channel (no author body to transform it).
+#        The trainable's `handler_exit` event carries `writes_snapshot` of
+#        this channel, which IS the output side of the training record. Per
+#        R-handler-005 (the literal-equal rule), the declared type here MUST
+#        equal the backend's structured-output constraint.
+#
+#        Field order here is contract, not authoring convention: the wire form
+#        compiles the declared order into the enforced emission order
+#        (autoregressive conditioning), so the hash fold preserves this
+#        section's entry order — reordering its fields shifts the
+#        training-bundle-hash (hash-model's Training-bundle-hash section owns
+#        the rule).
+
+[trainable.output_schema]
+# `description` is admitted HERE — a trainable output_schema field (incl. nested members) — and
+# ONLY here in the whole declaration grammar: it is model-facing contract content that rides the
+# wire's decode constraint and folds into the training-bundle-hash (handler reference § TOML field
+# type discipline; hash-model § What the pipeline-hash absorbs). Keep it to one model-facing
+# sentence; a GBNF-wire trainable rejects a described field at compose. All other field prose
+# (here and on reads/inputs/outputs/bindings) belongs in [annotations].
+dialogue_response = { type = "str", description = "The NPC's in-character spoken reply.", example = "the model's generated dialogue line" }
+# A structured-record channel is sub-table-marked, never token-spelled: `.fields` declares a
+# nested object; the composite slots `.item.fields` / `.value.fields` declare a list / dict of
+# nested records (handler reference § Types allowed owns the convention). Representative shape —
+# a list of typed turn records:
+#   [trainable.output_schema.events.item.fields]
+#   kind    = { type = "str", description = "What happened this turn." }
+#   subject = { type = "str", description = "Who or what it happened to." }
+
+# -----------------------------------------------------------------------------
+# [merge] section — internal channel fan-in declarations
+# -----------------------------------------------------------------------------
+# discipline: structural (value-supply) — one entry per internal fan-in channel (required for each channel with two-or-more contributors; R-pipeline-002 owns the rule)
+# notes: A channel's contributors are its seed (if a declared composition
+#        input) plus its node writes, in graph order. If a channel inside this
+#        TOML has two or more contributors, the fan-in MUST be declared with an
+#        explicit `<channel_name> = "<strategy>"` entry naming a strategy from
+#        the closed merge-strategy registry the pipeline reference owns. The
+#        contributors are independent — no writer reads the merged channel
+#        (single-assignment holds) — and the strategy folds them in graph
+#        order. The merge is scoped to this composition — it cannot reach into
+#        the embedding pipeline or vice versa.
+
+[merge]
+# empty body sanctioned when the composition has no internal merges. Uncomment
+# and populate when an internal channel has two or more contributors.
+# example_merged_channel = "last_wins"
+
+# -----------------------------------------------------------------------------
+# [annotations] section
+# -----------------------------------------------------------------------------
+# discipline: truly optional
+# notes: Free-form prose. Hash-neutral — content here does NOT contribute to
+#        the training-bundle-hash (annotations are metadata-class, not a
+#        training-bundle-hash input).
+#
+#        The `postprocessors` field (UI-grouping declaration) names handlers
+#        IN THE EMBEDDING PIPELINE that Studio should visually group with
+#        this trainable. The postprocessor handlers themselves live in the
+#        outer pipeline TOML, NOT inside this trainable TOML — postprocessors
+#        are downstream of `adapter.invoke` and MUST NOT affect what the
+#        model trained on. The asymmetry is structural, by placement:
+#        in-trainable-TOML = inside training-bundle-hash scope;
+#        out-of-trainable-TOML = outside. The field is a plain list of qualified
+#        OUTER-pipeline handler names — UI-only; the engine neither reads nor
+#        validates it.
+
+[annotations]
+notes = """
+One-paragraph summary of what this trainable composition does and when to
+embed it in a pipeline. Author-facing prose; the engine doesn't read this.
+"""
+postprocessors = ["acme_dialog.handlers.json_verdict", "acme_dialog.handlers.dialogue_extractor"]

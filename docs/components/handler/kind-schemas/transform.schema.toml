@@ -1,0 +1,119 @@
+# =============================================================================
+# Conjured handler-TOML schema — TRANSFORM kind
+# =============================================================================
+#
+# Schema for authoring transform handler TOMLs. A TRANSFORM is a pure-code
+# handler — deterministic, no external runtime resource, no service invocation.
+# Transforms compute their declared [output_schema] purely from declared
+# [reads] and [bindings.<name>] declarations.
+#
+# Use this file as a starting template:
+#   1. Copy this file to the handler's intended path.
+#   2. Delete the [meta] table (schema-only).
+#   3. Keep the [transform] top-level header verbatim.
+#   4. Replace each section's example fields with the handler's actual fields.
+#   5. Preserve required, empty-allowed sections even when the body is empty.
+#   6. Drop the `example` key from each field declaration (schema-only).
+#
+# Convention details: see kind-schemas/README.md.
+
+[meta]
+schema_for = "transform"
+top_level_header = "[transform]"
+summary = "Pure-code handler. Deterministic. No external call. Receives its declared [reads] input ports as kwargs; returns its declared [output_schema] output ports as a dict the runner routes onto channels via the node's write-map."
+
+# -----------------------------------------------------------------------------
+# Top-level kind header
+# -----------------------------------------------------------------------------
+# Top-level kind tag. Exactly one bare-function kind header (`[transform]` here)
+# must appear per handler TOML — the handler-kinds architecture page and the
+# handler conformance check own the kind roster; presence here routes the entry
+# to the engine's kind-specific compose-time construction path. The sub-sections
+# live as siblings at file top level.
+# Not a content-discipline section.
+
+[transform]
+
+# -----------------------------------------------------------------------------
+# [reads] section
+# -----------------------------------------------------------------------------
+# discipline: required, empty-allowed
+# applicability: all kinds
+# notes: Each declared field is one input PORT — a kwarg-only parameter on the
+#        dispatch signature. The runner projects each declared input port's
+#        wired channel value (via the node's read-map) into the kwarg dict and
+#        supplies them to the inner function. Empty body is sanctioned when the
+#        transform's behavior is fully determined by [bindings.<name>]
+#        declarations (e.g., an NPC-importer transform reading nothing from
+#        upstream because all input is bound by external declaration file path).
+
+[reads]
+example_input_port = { type = "str", example = "the player's most recent utterance" }
+
+# -----------------------------------------------------------------------------
+# [output_schema] section
+# -----------------------------------------------------------------------------
+# discipline: required, body-required
+# applicability: required for transforms; absent on hooks (hooks return None)
+# notes: Every declared field MUST appear in the handler's return dict.
+#        Returning a key absent from [output_schema] raises ContractViolation.
+#        Returning a wrong-type value raises SchemaValidationError. The
+#        section MUST declare at least one field — "declared nothing" is
+#        not a meaningful state for a kind whose Declared writes is required.
+
+[output_schema]
+example_output_port = { type = "str", example = "the normalized form of the input" }
+
+# -----------------------------------------------------------------------------
+# [bindings.<name>] sections — compose-time bindings
+# -----------------------------------------------------------------------------
+# discipline: required, empty-allowed (collectively; each named binding stands
+#             as its own closed-shape key; presence of any `[bindings.*]`
+#             heading is not required when zero bindings are declared)
+# applicability: all bare-function handler kinds
+# notes: `bindings.<name>` is the unified compose-time-binding declaration.
+#        Author names bindings by domain meaning — `config`, `npc`, `prompt_template`,
+#        `marker_set`, etc. Each entry declares its schema; the pipeline entry
+#        supplies the value. The supply grammar (inline, the `{ file = "..." }`
+#        external form, or the `{ null = true }` explicit null), the
+#        resolve-once / per-dispatch-copy delivery, the hash
+#        treatment, and the `default` / `compile` / `delivery` binding-declaration
+#        variants are ALL owned at the handler reference — § Binding value-supply
+#        grammar, § Ship-time defaults, § The compile directive sub-form,
+#        § Reference bindings (§ Types allowed owns the type vocabulary); this
+#        schema restates none of it.
+#        Author's function signature carries one kwarg per declared
+#        bindings.<name> entry. N ≥ 0 bindings per handler.
+
+[bindings.config]
+marker_set = { type = "Literal['brackets', 'curly', 'angles']", example = "brackets" }
+
+# -----------------------------------------------------------------------------
+# [service_bindings] section
+# -----------------------------------------------------------------------------
+# discipline: forbidden (kind discipline)
+# applicability: FORBIDDEN on transforms — the cross-kind applicability
+#                matrix is owned by the handler reference's § service_bindings
+# notes: Transforms have no external-call edge per R-handler-004 (transform
+#        purity) and the comparison-table External-call profile "none". The
+#        absence is structural — the engine's compose-time construction rejects any signature
+#        carrying a `services` kwarg per R-handler-001, and the kind
+#        discipline (R-handler-006) rejects the section appearing on a
+#        transform TOML. Do not include this section on a transform.
+
+# -----------------------------------------------------------------------------
+# [annotations] section
+# -----------------------------------------------------------------------------
+# discipline: truly optional
+# applicability: all kinds
+# notes: Free-form prose. Hash-neutral; edits never invalidate trained
+#        artifacts. This is the home for author prose about the handler and its
+#        fields — the per-field `description` key is admitted ONLY on a trainable
+#        `output_schema` field (handler reference § TOML field type discipline), so
+#        a transform's field prose lives here.
+
+[annotations]
+notes = """
+One-paragraph summary of what this transform does and when to compose it
+into a pipeline. Author-facing prose; the engine doesn't read this.
+"""
